@@ -1,0 +1,5 @@
+export PATH="/usr/local/sbin:$PATH"
+
+alias vim='nvim'
+eval "$(starship init zsh)"
+
