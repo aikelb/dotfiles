@@ -40,8 +40,7 @@ fi
 
 echo "Delete previous NvChad setup? (Y/n)"
 read delNvChad
-if [[ "$delNvChad" == "n" || "$delNvChad" == "N"]]; then
-else
+if [[ ! "$delNvChad" == "n" && ! "$delNvChad" == "N"]]; then
   echo "Cleaning NvChad..."
   rm -rf ~/.config/nvim
   rm -rf ~/.local/share/nvim
