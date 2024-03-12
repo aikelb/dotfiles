@@ -1,0 +1,8 @@
+{{if (eq .chezmoi.os "darwin") }}
+AppData
+PowerShell
+{{ end }}
+{{if (eq .chezmoi.os "windows") }}
+.config/nvim/lua/custom/**
+.zshrc
+{{ end }}
