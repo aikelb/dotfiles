@@ -1,0 +1,3 @@
+{{ if or (eq .chezmoi.os "linux") (eq .chezmoi.os "darwin") -}}
+{{- template "run_once_init.sh" . -}}
+{{ end -}}

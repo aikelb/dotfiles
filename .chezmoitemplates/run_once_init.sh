@@ -14,6 +14,8 @@ if [[ "$(uname)" == "Darwin" ]]; then
     echo "Installing starship.rs and ripgrep"
     brew install neovim starship ripgrep
 elif [[ "$(expr substr $(uname -s) 1 5)" == "Linux" ]]; then
+    echo "Updating sources and installing dependencies..."
+    sudo apt update && sudo apt install unzip 
     echo "Linux: Installing font and nvim"
 
     fonts_dir="${HOME}/.local/share/fonts"
