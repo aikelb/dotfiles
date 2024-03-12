@@ -1,8 +1,8 @@
 #!/bin/bash
 
-verion='3.1.1'
-echo "Downloading FiraCode..."
-wget https://github.com/ryanoasis/nerd-fonts/releases/download/v3.1.1/FiraCode.zip
+version='3.1.1'
+echo "Downloading FiraCode version $version..."
+wget "https://github.com/ryanoasis/nerd-fonts/releases/download/v$version/FiraCode.zip"
 
 if [[ "$(uname)" == "Darwin" ]]; then
     echo "macOS: Installing font and neovim"
@@ -40,7 +40,7 @@ fi
 
 echo "Delete previous NvChad setup? (Y/n)"
 read delNvChad
-if [[ ! "$delNvChad" == "n" && ! "$delNvChad" == "N"]]; then
+if [[ ! "$delNvChad" == "n" && ! "$delNvChad" == "N" ]]; then
   echo "Cleaning NvChad..."
   rm -rf ~/.config/nvim
   rm -rf ~/.local/share/nvim
