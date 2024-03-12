@@ -26,3 +26,10 @@ autocmd("BufRead", {
   command = "setfiletype hlsl",
 })
 -- vim.cmd("autocmd! BufNewFile,BufRead *.script setfiletype lua")
+
+-- Use tabs
+vim.opt.autoindent = true
+vim.opt.excpandtab = false
+vim.opt.tabstop = 2
+vim.opt.shiftwidth = 2
+vim.opt.softtabstop = 0
