@@ -1,30 +1,27 @@
 #!/bin/bash
 
-version='3.1.1'
-echo "Downloading FiraCode version $version..."
-wget "https://github.com/ryanoasis/nerd-fonts/releases/download/v$version/FiraCode.zip"
-
 if [[ "$(uname)" == "Darwin" ]]; then
-    echo "macOS: Installing font and neovim"
-    sudo -v
-    unzip FiraCode.zip -d ./font -x "*.txt/*" -x "*.md/*"
-    sudo mv ./font/*.ttf /Library/Fonts/
-    rm -rf ./font
-    
+    echo "Adding FiraCode Nerd Font"
+    brew tap homebrew/cask-fonts
+    brew install font-fira-code-nerd-font
     echo "Installing starship.rs and ripgrep"
-    brew install neovim starship ripgrep
+    brew install starship ripgrep neovim
+
 elif [[ "$(expr substr $(uname -s) 1 5)" == "Linux" ]]; then
     echo "Updating sources and installing dependencies..."
     sudo apt update && sudo apt install unzip 
     echo "Linux: Installing font and nvim"
 
+    echo "Downloading FiraCode"
+    tar_file="FiraCode.tar.xz"
+    curl --fail --location --show-error "https://github.com/ryanoasis/nerd-fonts/releases/latest/download/${tar_file}" --output "${tar_file}"
+
     fonts_dir="${HOME}/.local/share/fonts"
     if [[ ! -d "$fonts_dir" ]]; then
       mkdir -p "$fonts_dir"
     fi
-
-    unzip FiraCode.zip -d "$fonts_dir" -x "*.txt/*" -x "*.md/*"
-    rm FiraCode.zip
+    tar -xJf "${tar_file}" -C "${fonts_dir}"
+    rm "${tar_file}"
     fc-cache -fv
 
     curl -LO https://github.com/neovim/neovim/releases/latest/download/nvim.appimage
@@ -40,9 +37,9 @@ else
     exit 1
 fi
 
-echo "Delete previous NvChad setup? (Y/n)"
+echo "Delete previous NvChad setup? (yN)"
 read delNvChad
-if [[ ! "$delNvChad" == "n" && ! "$delNvChad" == "N" ]]; then
+if [[ "$delNvChad" == "y" || "$delNvChad" == "Y" ]]; then
   echo "Cleaning NvChad..."
   rm -rf ~/.config/nvim
   rm -rf ~/.local/share/nvim
