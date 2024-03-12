@@ -48,4 +48,6 @@ fi
 echo "Installing NvChad..."
 git clone https://github.com/NvChad/starter ~/.config/nvim
 
+chezmoi apply --force
+
 echo "Done. Run nvim to finish installing modules"
