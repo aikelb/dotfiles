@@ -3,13 +3,13 @@ README.md
 
 ## Windows
 {{if (eq .chezmoi.os "windows") }}
-run_once_init.sh
+init.sh
 .zshrc
 {{ end }}
 
 ## macOS
 {{if (eq .chezmoi.os "darwin") }}
-run_once_init.ps1
+init.ps1
 AppData
 PowerShell
 Documents
@@ -17,7 +17,7 @@ Documents
 
 ## Linux
 {{if (eq .chezmoi.os "linux") }}
-run_once_init.ps1
+init.ps1
 AppData
 PowerShell
 Documents
