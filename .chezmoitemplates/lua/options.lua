@@ -1,6 +1,8 @@
 require "nvchad.options"
 
 local opt = vim.opt
+opt.title = true
+
 -- Use tabs
 opt.autoindent = true
 opt.expandtab = false
