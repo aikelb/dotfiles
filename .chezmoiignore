@@ -1,8 +1,9 @@
 {{if (eq .chezmoi.os "darwin") }}
 AppData
 PowerShell
+Documents
 {{ end }}
 {{if (eq .chezmoi.os "windows") }}
-.config/nvim/lua/custom/**
+.config/nvim/**
 .zshrc
 {{ end }}
