@@ -1,9 +1,24 @@
+## All
+README.md
+
+## Windows
+{{if (eq .chezmoi.os "windows") }}
+init.sh
+.zshrc
+{{ end }}
+
+## macOS
 {{if (eq .chezmoi.os "darwin") }}
+init.ps1
 AppData
 PowerShell
 Documents
 {{ end }}
-{{if (eq .chezmoi.os "windows") }}
-.config/nvim/**
-.zshrc
+
+## Linux
+{{if (eq .chezmoi.os "linux") }}
+init.ps1
+AppData
+PowerShell
+Documents
 {{ end }}
