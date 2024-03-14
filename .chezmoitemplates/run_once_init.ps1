@@ -17,4 +17,4 @@ git clone https://github.com/NvChad/starter $ENV:USERPROFILE\AppData\Local\nvim
 
 chezmoi apply --force
 
-Write-Host "Done. Run nvim to finish installing modules"
+Write-Host "Done. Run nvim to finish installing modules and run :MasonInstallAll"
