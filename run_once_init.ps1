@@ -15,6 +15,4 @@ if ($delNvChad -eq "y" -or $delNvChad -eq "Y") {
 Write-Host "Installing NvChad..."
 git clone https://github.com/NvChad/starter $ENV:USERPROFILE\AppData\Local\nvim
 
-chezmoi apply --force
-
-Write-Host "Done. Run nvim to finish installing modules and run :MasonInstallAll"
+Write-Host "Done. chezmoi apply --force to overwrite config and then run nvim to finish installing modules and run :MasonInstallAll"
