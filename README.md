@@ -1,5 +1,10 @@
-~/. my dotfiles ~/. 🏠 
-> Managed with chezmoi 
+<div align="center">
+
+### ~/. my dotfiles ~/. :house:&nbsp;
+
+#### \> Managed with chezmoi
+</div>
+
 
 📖  Overview
 
