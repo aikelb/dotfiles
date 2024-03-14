@@ -1,35 +1,39 @@
-local autocmd = vim.api.nvim_create_autocmd
+vim.g.base46_cache = vim.fn.stdpath "data" .. "/nvchad/base46/"
+vim.g.mapleader = " "
 
--- Auto resize panes when resizing nvim window
-autocmd("VimResized", {
-  pattern = "*",
-  command = "tabdo wincmd =",
-})
+-- bootstrap lazy and all plugins
+local lazypath = vim.fn.stdpath "data" .. "/lazy/lazy.nvim"
 
--- Lua lsp for script files
-autocmd("BufNewFile", {
-  pattern = "*.script,*.gui_script",
-  command = "setfiletype lua",
-})
-autocmd("BufRead", {
-  pattern = "*.script,*.gui_script",
-  command = "setfiletype lua",
-})
+if not vim.loop.fs_stat(lazypath) then
+  local repo = "https://github.com/folke/lazy.nvim.git"
+  vim.fn.system { "git", "clone", "--filter=blob:none", repo, "--branch=stable", lazypath }
+end
 
--- hlsl for defold shader files
-autocmd("BufNewFile", {
-  pattern = "*.fp,*.vp",
-  command = "setfiletype hlsl",
-})
-autocmd("BufRead", {
-  pattern = "*.fp,*.vp",
-  command = "setfiletype hlsl",
-})
--- vim.cmd("autocmd! BufNewFile,BufRead *.script setfiletype lua")
+vim.opt.rtp:prepend(lazypath)
 
--- Use tabs
-vim.opt.autoindent = true
-vim.opt.excpandtab = false
-vim.opt.tabstop = 2
-vim.opt.shiftwidth = 2
-vim.opt.softtabstop = 0
+local lazy_config = require "configs.lazy"
+
+-- load plugins
+require("lazy").setup({
+  {
+    "NvChad/NvChad",
+    lazy = false,
+    branch = "v2.5",
+    import = "nvchad.plugins",
+    config = function()
+      require "options"
+    end,
+  },
+
+  { import = "plugins" },
+}, lazy_config)
+
+-- load theme
+dofile(vim.g.base46_cache .. "defaults")
+dofile(vim.g.base46_cache .. "statusline")
+
+require "autocmds"
+
+vim.schedule(function()
+  require "mappings"
+end)

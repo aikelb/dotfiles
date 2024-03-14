@@ -1,16 +1,17 @@
-local overrides = require "custom.configs.overrides"
+local overrides = require "configs.overrides"
+
 
 ---@type NvPluginSpec[]
-local plugins = {
+return {
 
   -- Override plugin definition options
-
   {
     "neovim/nvim-lspconfig",
+    
     config = function()
-      require "plugins.configs.lspconfig"
-      require "custom.configs.lspconfig"
-    end, -- Override to setup mason-lspconfig
+      require ("nvchad.configs.lspconfig").defaults()
+      require "configs.lspconfig"
+    end,
   },
 
   -- override plugin configs
@@ -43,7 +44,7 @@ local plugins = {
     --  for users those who want auto-save conform + lazyloading!
     -- event = "BufWritePre",
     config = function()
-      require "custom.configs.conform"
+      require "configs.conform"
     end,
   },
 
@@ -76,6 +77,5 @@ local plugins = {
   --   "mg979/vim-visual-multi",
   --   lazy = false,
   -- }
-}
 
-return plugins
+}

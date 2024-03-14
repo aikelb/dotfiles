@@ -1,5 +1,5 @@
-local on_attach = require("plugins.configs.lspconfig").on_attach
-local capabilities = require("plugins.configs.lspconfig").capabilities
+local on_attach = require("nvchad.configs.lspconfig").on_attach
+local capabilities = require("nvchad.configs.lspconfig").capabilities
 
 local lspconfig = require "lspconfig"
 
@@ -12,14 +12,6 @@ for _, lsp in ipairs(servers) do
     capabilities = capabilities,
   }
 end
-
-lspconfig.lua_ls.setup {
-  settings={
-    Lua={
-    filetypes={"lua","script"}
-    }
-  }
-}
 
 --
 -- lspconfig.pyright.setup { blabla}
