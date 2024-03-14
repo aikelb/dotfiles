@@ -1,3 +1,5 @@
 [user]
 	name = Aitor Lozano
 	email = info@aitorlozano.com
+[credential "helperselector"]
+	selected = manager
