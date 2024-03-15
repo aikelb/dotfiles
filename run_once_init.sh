@@ -48,5 +48,5 @@ fi
 echo "Installing Kickstart.nvim ..."
 git clone https://github.com/nvim-lua/kickstart.nvim.git "${XDG_CONFIG_HOME:-$HOME/.config}"/nvim
 
-Write-Host "Done. chezmoi apply --force to overwrite config and then run nvim to finish installing modules and run :MasonInstallAll"
+echo "Done. chezmoi apply --force to overwrite config and then run nvim to finish installing modules and run :MasonInstallAll"
 
