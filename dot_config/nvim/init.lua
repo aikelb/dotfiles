@@ -623,7 +623,7 @@ require('lazy').setup({
         --   timeout_ms = 500,
         --   lsp_fallback = not disable_filetypes[vim.bo[bufnr].filetype],
         -- }
-      end,
+--      end,
       formatters_by_ft = {
         lua = { 'stylua' },
         javascript = { 'prettier' },
