@@ -631,7 +631,7 @@ require('lazy').setup({
         html = { 'prettier' },
         markdown = { 'prettier' },
         sh = { 'shfmt' },
-
+        toml = { 'taplo' },
         json = { 'deno_fmt' },
       },
     },
