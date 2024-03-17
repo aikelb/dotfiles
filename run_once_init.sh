@@ -37,7 +37,7 @@ else
     exit 1
 fi
 
-echo "Delete previous NvChad setup? (yN)"
+echo "Delete previous nvim setup? (yN)"
 read delNvChad
 if [[ "$delNvChad" == "y" || "$delNvChad" == "Y" ]]; then
   echo "Cleaning NvChad..."
@@ -45,8 +45,9 @@ if [[ "$delNvChad" == "y" || "$delNvChad" == "Y" ]]; then
   rm -rf ~/.local/share/nvim
 fi
 
-echo "Installing Kickstart.nvim ..."
+echo "Cloning Kickstart.nvim ..."
 git clone https://github.com/nvim-lua/kickstart.nvim.git "${XDG_CONFIG_HOME:-$HOME/.config}"/nvim
 
-echo "Done. chezmoi apply --force to overwrite config and then run nvim to finish installing modules and run :MasonInstallAll"
+echo "Done! Do chezmoi apply --force to overwrite config."
+echo "Then run nvim to finish installing modules and run :MasonInstallAll."
 
