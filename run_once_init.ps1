@@ -1,4 +1,10 @@
-if (!([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")) { Start-Process powershell.exe "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`"" -Verb RunAs; exit }
+# Comprobar si el script se está ejecutando con privilegios de administrador
+if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
+    # Si no se ejecuta como administrador, solicitar elevación ejecutando el mismo script con el parámetro -RunAsAdmin
+    Start-Process -FilePath PowerShell.exe -ArgumentList "-File `"$($MyInvocation.MyCommand.Path)`" -Verb RunAs"
+    # Salir del script actual ya que se volverá a ejecutar con privilegios de administrador
+    Exit
+}
 
 # To list all appx packages:
 # Get-AppxPackage | Format-Table -Property Name,Version,PackageFullName
@@ -26,7 +32,7 @@ scoop bucket add nerd-fonts
 scoop install FiraCode-NF
 
 Write-Host "Installing starship.rs kickstart.nvim dependencies"
-scoop install starship ripgrep neovim git ripgrep wget fd unzip gzip mingw make
+scoop install starship ripgrep neovim git ripgrep wget fd unzip gzip mingw make sed
 
 $delNvChad = Read-Host "Delete previous nvim setup? (yN)"
 if ($delNvChad -eq "y" -or $delNvChad -eq "Y") {
