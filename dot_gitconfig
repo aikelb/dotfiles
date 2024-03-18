@@ -3,3 +3,5 @@
 	email = info@aitorlozano.com
 [credential "helperselector"]
 	selected = manager
+[rebase]
+	auto = true
