@@ -1,3 +1,26 @@
+if (!([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] "Administrator")) { Start-Process powershell.exe "-NoProfile -ExecutionPolicy Bypass -File `"$PSCommandPath`"" -Verb RunAs; exit }
+
+# To list all appx packages:
+# Get-AppxPackage | Format-Table -Property Name,Version,PackageFullName
+Write-Header "Removing UWP Apps..."
+$uwpApps = @(
+    "Microsoft.OutlookForWindows",
+    "Microsoft.BingSearch",
+    "Microsoft.BingWeather",
+    "Microsoft.WindowsFeedbackHub",
+    "Microsoft.YourPhone",
+    "Microsoft.MicrosoftOfficeHub",
+    "Microsoft.People",
+    "Microsoft.GetHelp")
+
+$delW11Packages = Read-Host "Delete W11 preinstalled pacakges? (yN)"
+if ($delW11Packages -eq "y" -or $delW11Packages -eq "Y") {
+	foreach ($uwp in $uwpApps)
+	{
+    		Get-AppxPackage -Name $uwp | Remove-AppxPackage
+	}
+}
+
 Write-Host "Adding FiraCode Nerd Font"
 scoop bucket add nerd-fonts
 scoop install FiraCode-NF
