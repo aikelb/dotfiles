@@ -1,11 +1,9 @@
-Set-ExecutionPolicy RemoteSigned
-
 Write-Host "Adding FiraCode Nerd Font"
 scoop bucket add nerd-fonts
 scoop install FiraCode-NF
 
 Write-Host "Installing starship.rs kickstart.nvim dependencies"
-scoop install starship ripgrep neovim git ripgrep wget fd unzip gzip mingw make sed
+scoop install starship ripgrep neovim git ripgrep wget fd unzip gzip mingw make sed gsudo
 
 $delNvChad = Read-Host "Delete previous nvim setup? (yN)"
 if ($delNvChad -eq "y" -or $delNvChad -eq "Y") {
