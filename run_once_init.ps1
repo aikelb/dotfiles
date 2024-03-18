@@ -1,4 +1,4 @@
-
+Set-ExecutionPolicy RemoteSigned
 
 Write-Host "Adding FiraCode Nerd Font"
 scoop bucket add nerd-fonts
