@@ -45,4 +45,18 @@ return {
 	config = function()
 		require("alpha").setup(require("alpha.themes.theta").config)
 	end,
+	opts = function()
+		local dashboard = require("alpha.themes.dashboard")
+		dashboard.section.buttons.val = {
+			{ type = "text", val = "Quick links", opts = { hl = "SpecialComment", position = "center" } },
+			{ type = "padding", val = 1 },
+			dashboard.button("e", "  New file", "<cmd>ene<CR>"),
+			dashboard.button("Leader s f", "󰈞  Find file"),
+			dashboard.button("Leader s g", "󰊄  Live grep"),
+			dashboard.button("c", "  Configuration", "<cmd>cd ~/.config/nvim/ <CR>"),
+			dashboard.button("u", "  Update plugins", "<cmd>Lazy sync<CR>"),
+			dashboard.button("q", "󰅚  Quit", "<cmd>qa<CR>"),
+		}
+		return dashboard
+	end,
 }
