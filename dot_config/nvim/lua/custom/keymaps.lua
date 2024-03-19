@@ -4,8 +4,8 @@ local map = vim.keymap.set
 map("n", "<C-n>", ":Neotree toggle<CR>", { desc = "Toggle neotree" })
 
 -- Tabs
-map("n", "<Tab>", ":BufferLineCyclePrev<CR>", { desc = "Cycle Previous Tab" })
-map("n", "<S-Tab>", ":BufferLineCycleNext<CR>", { desc = "Cycle Next Tab" })
+map("n", "<Tab>", ":BufferLineCycleNext<CR>", { desc = "Cycle Next Tab" })
+map("n", "<S-Tab>", ":BufferLineCyclePrev<CR>", { desc = "Cycle Previous Tab" })
 
 -- Format files
 map("n", "<leader>fm", function()

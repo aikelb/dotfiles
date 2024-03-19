@@ -4,9 +4,6 @@
 -- See the kickstart.nvim README for more information
 return {
 
-	-- tabs
-	{ "akinsho/bufferline.nvim", version = "*", dependencies = "nvim-tree/nvim-web-devicons", opts = {} },
-
 	-- status line
 	{
 		"sontungexpt/sttusline",
