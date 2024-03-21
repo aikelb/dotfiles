@@ -5,3 +5,5 @@
 	selected = manager
 [rebase]
 	auto = true
+[init]
+	defaultBranch = main
