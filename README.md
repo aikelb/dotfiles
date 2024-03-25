@@ -27,6 +27,18 @@ chezmoi init --apply $GITHUB_USERNAME
 ```
 
 ## macOS
+
+Start by installing [kitty](https://sw.kovidgoyal.net/kitty/binary/) or just run:
+```bash
+curl -L https://sw.kovidgoyal.net/kitty/installer.sh | sh /dev/stdin
+```
+
+We also need [homebrew](https://brew.sh)
+```bash
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+```
+
+Then we are ready to install chezmoi!
 ```bash
 brew install chezmoi
 chezmoi init --apply $GITHUB_USERNAME
