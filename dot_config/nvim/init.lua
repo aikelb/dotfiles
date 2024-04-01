@@ -554,6 +554,8 @@ require('lazy').setup({
         -- tsserver = {},
         --
         astro = {},
+        html = {},
+        cssls={},
 
         lua_ls = {
           -- cmd = {...},
@@ -591,7 +593,7 @@ require('lazy').setup({
       -- for you, so that they are available from within Neovim.
       local ensure_installed = vim.tbl_keys(servers or {})
       vim.list_extend(ensure_installed, {
-        'stylua', -- Used to format Lua code
+        'stylua','prettier', 'shfmt', "deno", "taplo" -- Used to format Lua code
       })
       require('mason-tool-installer').setup { ensure_installed = ensure_installed }
 
@@ -629,6 +631,7 @@ require('lazy').setup({
         javascript = { 'prettier' },
         css = { 'prettier' },
         html = { 'prettier' },
+        yaml = { 'prettier' },
         markdown = { 'prettier' },
         sh = { 'shfmt' },
         toml = { 'taplo' },
@@ -666,7 +669,7 @@ require('lazy').setup({
       --    you can use this plugin to help you. It even has snippets
       --    for various frameworks/libraries/etc. but you will have to
       --    set up the ones that are useful for you.
-      -- 'rafamadriz/friendly-snippets',
+      'rafamadriz/friendly-snippets',
     },
     config = function()
       -- See `:help cmp`
