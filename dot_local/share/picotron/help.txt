@@ -1,0 +1,36 @@
+====================================================================================================
+    Getting Started
+====================================================================================================
+
+Picotron looks for a configuration files in the following locations:
+
+    Windows: C:/Users/Yourname/AppData/Roaming/Picotron/picotron_config.txt 
+    OSX: /Users/Yourname/Library/Application Support/Picotron/picotron_config.txt 
+    Linux:  ~/.lexaloffle/Picotron/picotron_config.txt
+
+-----------------------------------------------------------------------------------------
+    Custom shared folder
+-----------------------------------------------------------------------------------------
+Add a new line to the config file to include this folder in the desktop2
+
+mount /appdata/system/desktop2/shared C:/Users/Yourname/.local/share/picotron/shared
+
+-----------------------------------------------------------------------------------------
+    Extra config
+-----------------------------------------------------------------------------------------
+Then, open up /appdata/system/startup.lua (or create the file if you haven't yet).
+
+open /appdata/system/startup.lua
+
+Add the following line:
+
+create_process("/appdata/system/desktop2/shared/carts/pomodoro.p64.png", {window_attribs = {workspace = "tooltray", x=2, y=2, width=91, height=32}})
+
+====================================================================================================
+    References
+====================================================================================================
+https://www.lexaloffle.com/picotron.php?page=resources
+
+https://www.lexaloffle.com/dl/docs/picotron_manual.html
+
+https://www.lexaloffle.com/dl/docs/picotron_changelog.txt
