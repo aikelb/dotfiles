@@ -6,6 +6,8 @@ map("n", "<C-n>", ":Neotree toggle<CR>", { desc = "Toggle neotree" })
 -- Tabs
 map("n", "<Tab>", ":BufferLineCycleNext<CR>", { desc = "Cycle Next Tab" })
 map("n", "<S-Tab>", ":BufferLineCyclePrev<CR>", { desc = "Cycle Previous Tab" })
+map("n", "<A-w>", ":bd<CR>", { desc = "Close current buffer" })
+map("n", "<A-n>", ":enew<CR>", { desc = "New buffer" })
 
 -- Format files
 map("n", "<leader>fm", function()
