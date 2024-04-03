@@ -9,11 +9,6 @@ map("n", "<S-Tab>", ":BufferLineCyclePrev<CR>", { desc = "Cycle Previous Tab" })
 map("n", "<A-w>", ":bd<CR>", { desc = "Close current buffer" })
 map("n", "<A-n>", ":enew<CR>", { desc = "New buffer" })
 
--- Format files
-map("n", "<leader>fm", function()
-	require("conform").format()
-end, { desc = "File Format with conform" })
-
 -- TIP: Disable arrow keys in normal mode
 -- vim.keymap.set('n', '<left>', '<cmd>echo "Use h to move!!"<CR>')
 -- vim.keymap.set('n', '<right>', '<cmd>echo "Use l to move!!"<CR>')
