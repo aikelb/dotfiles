@@ -559,7 +559,7 @@ require('lazy').setup({
 
         lua_ls = {
           -- cmd = {...},
-          -- filetypes = { ...},
+          filetypes = { 'lua', 'script', 'gui_script', 'render_script', 'editor_script' },
           -- capabilities = {},
           settings = {
             Lua = {
@@ -576,6 +576,7 @@ require('lazy').setup({
               },
               -- You can toggle below to ignore Lua_LS's noisy `missing-fields` warnings
               diagnostics = { disable = { 'missing-fields' } },
+              telemetry = { enabled = false },
             },
           },
         },
@@ -814,7 +815,7 @@ require('lazy').setup({
     'nvim-treesitter/nvim-treesitter',
     build = ':TSUpdate',
     opts = {
-      ensure_installed = { 'bash', 'c', 'html', 'lua', 'luadoc', 'markdown', 'vim', 'vimdoc', 'astro' },
+      ensure_installed = { 'bash', 'c', 'html', 'lua', 'luadoc', 'markdown', 'vim', 'vimdoc', 'astro', 'hlsl' },
       -- Autoinstall languages that are not installed
       auto_install = true,
       highlight = { enable = true },
