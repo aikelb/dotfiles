@@ -9,6 +9,9 @@ map("n", "<S-Tab>", ":BufferLineCyclePrev<CR>", { desc = "Cycle Previous Tab" })
 map("n", "<A-w>", ":bd<CR>", { desc = "Close current buffer" })
 map("n", "<A-n>", ":enew<CR>", { desc = "New buffer" })
 
+map ("n", "<leader>wd", ":Telescope neovim-project discover<CR>", { desc = "[W]orkspace [D]iscover"})
+map("n", "<leader>wh", ":Telescope neovim-project history<CR>", { desc = "[W]orkspace [H]istory"})
+map("n", "<leader>wl", ":NeovimProjectLoadRecent<CR>", { desc = "[W]orkspace [L]oad Recent"})
 -- TIP: Disable arrow keys in normal mode
 -- vim.keymap.set('n', '<left>', '<cmd>echo "Use h to move!!"<CR>')
 -- vim.keymap.set('n', '<right>', '<cmd>echo "Use l to move!!"<CR>')
