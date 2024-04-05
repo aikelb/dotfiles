@@ -7,14 +7,14 @@ autocmd("VimResized", {
 })
 
 -- Lua lsp for script files
-autocmd("BufNewFile", {
+--[[ autocmd("BufNewFile", {
 	pattern = "*.script,*.gui_script",
 	command = "setfiletype lua",
 })
 autocmd("BufRead", {
 	pattern = "*.script,*.gui_script",
 	command = "setfiletype lua",
-})
+}) ]]
 
 -- hlsl for defold shader files
 autocmd("BufNewFile", {
@@ -25,3 +25,4 @@ autocmd("BufRead", {
 	pattern = "*.fp,*.vp",
 	command = "setfiletype hlsl",
 })
+

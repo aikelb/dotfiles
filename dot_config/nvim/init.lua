@@ -412,7 +412,7 @@ require('lazy').setup({
       'williamboman/mason.nvim',
       'williamboman/mason-lspconfig.nvim',
       'WhoIsSethDaniel/mason-tool-installer.nvim',
-
+	    'artemave/workspace-diagnostics.nvim',
       -- Useful status updates for LSP.
       -- NOTE: `opts = {}` is the same as calling `require('fidget').setup({})`
       { 'j-hui/fidget.nvim', opts = {} },
@@ -567,16 +567,27 @@ require('lazy').setup({
               workspace = {
                 checkThirdParty = false,
                 library = {
-                  '${3rd}/luv/library',
                   unpack(vim.api.nvim_get_runtime_file('', true)),
+                  [vim.fn.expand "$VIMRUNTIME/lua"] = true,
                 },
               },
               completion = {
                 callSnippet = 'Replace',
               },
               -- You can toggle below to ignore Lua_LS's noisy `missing-fields` warnings
-              diagnostics = { disable = { 'missing-fields' } },
+              diagnostics = {
+                globals = { 'msg', 'sound','hash', 'vmath', 'gui', 'socket', 'sys', 'render', 'go', 'factory', 'resource', 'pprint', 'timer', 'particlefx', 'spine', 'sprite', 'json', 'window', 'physics', 'hashed' },
+                disable = { 'missing-fields', 'lowercase-global', 'redefined-local' },
+                libraryFiles = "Disable",
+              },
               telemetry = { enabled = false },
+              format = {
+                enable = true,
+                defaultConfig = {
+                  indent_style = "tab",
+                  indent_size = "2",
+                }
+              }
             },
           },
         },
@@ -606,6 +617,9 @@ require('lazy').setup({
             -- by the server configuration above. Useful when disabling
             -- certain features of an LSP (for example, turning off formatting for tsserver)
             server.capabilities = vim.tbl_deep_extend('force', {}, capabilities, server.capabilities or {})
+            server.on_attach = function(client, bufnr)
+              require('workspace-diagnostics').populate_workspace_diagnostics(client, bufnr)
+            end
             require('lspconfig')[server_name].setup(server)
           end,
         },
