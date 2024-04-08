@@ -4,8 +4,8 @@ if [[ "$(uname)" == "Darwin" ]]; then
     echo "Adding FiraCode Nerd Font"
     brew tap homebrew/cask-fonts
     brew install font-fira-code-nerd-font
-    echo "Installing starship.rs and ripgrep"
-    brew install starship ripgrep neovim
+    echo "Installing starship.rs, neovim and dependencies..."
+    brew install starship ripgrep neovim fzf zoxide lf
 
 elif [[ "$(expr substr $(uname -s) 1 5)" == "Linux" ]]; then
     echo "Updating sources and installing dependencies..."
@@ -25,7 +25,7 @@ elif [[ "$(expr substr $(uname -s) 1 5)" == "Linux" ]]; then
     fc-cache -fv
 
     curl -LO https://github.com/neovim/neovim/releases/latest/download/nvim.appimage
-chmod u+x nvim.appimage
+    chmod u+x nvim.appimage
     ./nvim.appimage
 
     echo "Installing starship.rs"
