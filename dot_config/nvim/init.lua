@@ -405,6 +405,27 @@ require('lazy').setup({
     end,
   },
 
+  {'artemave/workspace-diagnostics.nvim',
+    opts = {
+      workspace_files = function ()
+        local files = vim.fn.systemlist("git ls-files")
+        local extensions = {"lua", "script", "gui_script"}
+        local filtered_files = {}
+
+        for _, file in ipairs(files) do
+          for _, ext in ipairs(extensions) do
+            if string.match(file, "%."..ext.."$") then
+              table.insert(filtered_files, file)
+            end
+          end
+        end
+
+        return filtered_files
+      end
+    }
+  },
+
+
   { -- LSP Configuration & Plugins
     'neovim/nvim-lspconfig',
     dependencies = {
@@ -413,6 +434,7 @@ require('lazy').setup({
       'williamboman/mason-lspconfig.nvim',
       'WhoIsSethDaniel/mason-tool-installer.nvim',
 	    'artemave/workspace-diagnostics.nvim',
+
       -- Useful status updates for LSP.
       -- NOTE: `opts = {}` is the same as calling `require('fidget').setup({})`
       { 'j-hui/fidget.nvim', opts = {} },
@@ -569,6 +591,7 @@ require('lazy').setup({
                 library = {
                   unpack(vim.api.nvim_get_runtime_file('', true)),
                   [vim.fn.expand "$VIMRUNTIME/lua"] = true,
+                  [vim.fn.expand "$VIMRUNTIME/lua/vim/lsp"] = true,
                 },
               },
               completion = {
@@ -576,7 +599,7 @@ require('lazy').setup({
               },
               -- You can toggle below to ignore Lua_LS's noisy `missing-fields` warnings
               diagnostics = {
-                globals = { 'msg', 'sound','hash', 'vmath', 'gui', 'socket', 'sys', 'render', 'go', 'factory', 'resource', 'pprint', 'timer', 'particlefx', 'spine', 'sprite', 'json', 'window', 'physics', 'hashed' },
+                globals = { 'vim', 'msg', 'sound','hash', 'vmath', 'gui', 'socket', 'sys', 'render', 'go', 'factory', 'resource', 'pprint', 'timer', 'particlefx', 'spine', 'sprite', 'json', 'window', 'physics', 'hashed' },
                 disable = { 'missing-fields', 'lowercase-global', 'redefined-local' },
                 libraryFiles = "Disable",
               },
