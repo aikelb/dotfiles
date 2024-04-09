@@ -22,6 +22,7 @@ return {
 					hide_gitignored = true,
 					hide_by_name = {
 						"node_modules",
+						".defold"
 					},
 					never_show = {
 						".DS_Store",
