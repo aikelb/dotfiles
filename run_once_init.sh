@@ -5,7 +5,7 @@ if [[ "$(uname)" == "Darwin" ]]; then
     brew tap homebrew/cask-fonts
     brew install font-fira-code-nerd-font
     echo "Installing starship.rs, neovim and dependencies..."
-    brew install starship ripgrep neovim fzf zoxide lf
+    brew install starship ripgrep neovim fzf zoxide lf silicon
 
 elif [[ "$(expr substr $(uname -s) 1 5)" == "Linux" ]]; then
     echo "Updating sources and installing dependencies..."
