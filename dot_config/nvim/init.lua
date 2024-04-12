@@ -599,7 +599,7 @@ require('lazy').setup({
               },
               -- You can toggle below to ignore Lua_LS's noisy `missing-fields` warnings
               diagnostics = {
-                globals = { 'vim', 'msg', 'sound','hash', 'vmath', 'gui', 'socket', 'sys', 'render', 'go', 'factory', 'resource', 'pprint', 'timer', 'particlefx', 'spine', 'sprite', 'json', 'window', 'physics', 'hashed' },
+                globals = { 'assert_blank', 'assert_empty', 'assert_equal', 'assert_error', 'assert_false', 'assert_greater_than', 'assert_gte', 'assert_less_than', 'assert_lte', 'assert_match', 'assert_nil', 'assert_not_blank', 'assert_not_empty', 'assert_not_equal', 'assert_not_error', 'assert_not_false', 'assert_not_greater_than', 'assert_not_gte', 'assert_not_less_than', 'assert_not_lte', 'assert_not_match', 'assert_not_nil', 'assert_not_true', 'assert_not_type', 'assert_same', 'assert_true', 'assert_type', 'assert_unique', 'before', 'bit', 'buffer', 'collectionfactory', 'collectionproxy', 'context', 'crash', 'defos', 'describe', 'editor', 'expect', 'factory', 'final', 'fmod', 'gui', 'hash', 'hash_to_hex', 'html5', 'http', 'image', 'init', 'it', 'json', 'label', 'model', 'msg', 'on_input', 'on_message', 'on_reload', 'particlefx', 'physics', 'pprint', 'profiler', 'render', 'resource', 'setup', 'should', 'socket', 'sound', 'spec', 'spine', 'sprite', 'sys', 'teardown', 'test', 'they', 'tilemap', 'timer', 'update', 'vim', 'vmath', 'window', 'zlib'},
                 disable = { 'missing-fields', 'lowercase-global', 'redefined-local' },
                 libraryFiles = "Disable",
               },
