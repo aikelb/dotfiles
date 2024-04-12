@@ -585,7 +585,7 @@ require('lazy').setup({
           -- capabilities = {},
           settings = {
             Lua = {
-              runtime = { version = '5.1' },
+              runtime = { version = 'LuaJIT' },
               workspace = {
                 checkThirdParty = false,
                 library = {
@@ -628,7 +628,7 @@ require('lazy').setup({
       -- for you, so that they are available from within Neovim.
       local ensure_installed = vim.tbl_keys(servers or {})
       vim.list_extend(ensure_installed, {
-        'stylua','prettier', 'shfmt', 'deno', 'taplo', 'clang-format'
+        'stylua','prettier', 'shfmt', 'deno', 'taplo', 'clang-format', 'buf'
       })
       require('mason-tool-installer').setup { ensure_installed = ensure_installed }
 
@@ -686,6 +686,7 @@ require('lazy').setup({
         toml = { 'taplo' },
         json = { 'deno_fmt' },
         glsl = { 'clang-format' },
+        protobuf = { 'buf' },
       },
     },
   },
@@ -853,7 +854,7 @@ require('lazy').setup({
     'nvim-treesitter/nvim-treesitter',
     build = ':TSUpdate',
     opts = {
-      ensure_installed = { 'bash', 'c', 'html', 'lua', 'luadoc', 'markdown', 'vim', 'vimdoc', 'astro', 'glsl' },
+      ensure_installed = { 'bash', 'c', 'html', 'lua', 'luadoc', 'markdown', 'vim', 'vimdoc', 'astro', 'glsl', 'textproto' },
       -- Autoinstall languages that are not installed
       auto_install = true,
       highlight = { enable = true },
@@ -864,6 +865,8 @@ require('lazy').setup({
 
       ---@diagnostic disable-next-line: missing-fields
       require('nvim-treesitter.configs').setup(opts)
+
+      vim.treesitter.language.register("textproto", "protobuf")
 
       -- There are additional nvim-treesitter modules that you can use to interact
       -- with nvim-treesitter. You should go explore a few and see what interests you:
