@@ -6,23 +6,14 @@ autocmd("VimResized", {
 	command = "tabdo wincmd =",
 })
 
--- Lua lsp for script files
---[[ autocmd("BufNewFile", {
-	pattern = "*.script,*.gui_script",
-	command = "setfiletype lua",
-})
-autocmd("BufRead", {
-	pattern = "*.script,*.gui_script",
-	command = "setfiletype lua",
-}) ]]
+-- File types
+-- autocmd({"BufNewFile", "BufRead"}, {
+-- 	pattern = "*.script,*.gui_script",
+-- 	command = "setfiletype lua",
+-- })
 
--- hlsl for defold shader files
-autocmd("BufNewFile", {
-	pattern = "*.fp,*.vp",
-	command = "setfiletype hlsl",
-})
-autocmd("BufRead", {
-	pattern = "*.fp,*.vp",
-	command = "setfiletype hlsl",
+autocmd({"BufNewFile", "BufRead"}, {
+	pattern = "*.fp,*.vp,*.vsh,*.fsh",
+	command = "setfiletype glsl",
 })
 

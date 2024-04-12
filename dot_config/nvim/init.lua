@@ -628,7 +628,7 @@ require('lazy').setup({
       -- for you, so that they are available from within Neovim.
       local ensure_installed = vim.tbl_keys(servers or {})
       vim.list_extend(ensure_installed, {
-        'stylua','prettier', 'shfmt', "deno", "taplo" -- Used to format Lua code
+        'stylua','prettier', 'shfmt', 'deno', 'taplo', 'clang-format'
       })
       require('mason-tool-installer').setup { ensure_installed = ensure_installed }
 
@@ -685,6 +685,7 @@ require('lazy').setup({
         sh = { 'shfmt' },
         toml = { 'taplo' },
         json = { 'deno_fmt' },
+        glsl = { 'clang-format' },
       },
     },
   },
@@ -852,7 +853,7 @@ require('lazy').setup({
     'nvim-treesitter/nvim-treesitter',
     build = ':TSUpdate',
     opts = {
-      ensure_installed = { 'bash', 'c', 'html', 'lua', 'luadoc', 'markdown', 'vim', 'vimdoc', 'astro', 'hlsl' },
+      ensure_installed = { 'bash', 'c', 'html', 'lua', 'luadoc', 'markdown', 'vim', 'vimdoc', 'astro', 'glsl' },
       -- Autoinstall languages that are not installed
       auto_install = true,
       highlight = { enable = true },

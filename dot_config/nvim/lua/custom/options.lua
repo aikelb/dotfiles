@@ -11,5 +11,10 @@ vim.filetype.add({
 	extension = {
 		script = "lua",
 		gui_script = "lua",
+		render_script = "lua",
+		editor_script = "lua",
+		vp = "glsl",
+		fp = "glsl",
 	},
 })
+
