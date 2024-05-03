@@ -18,11 +18,12 @@ return {
 			filesystem = {
 				follow_current_file = { enabled = true },
 				filtered_items = {
-					hide_dotfiles = false,
+					hide_dotfiles = true,
 					hide_gitignored = true,
 					hide_by_name = {
 						"node_modules",
-						".defold"
+						".defold",
+						".vscode",
 					},
 					never_show = {
 						".DS_Store",
