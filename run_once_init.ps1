@@ -37,7 +37,7 @@ $uwpApps = @(
 		"Microsoft.MicrosoftOfficeHub",
 		"Microsoft.People",
 		"Microsoft.GetHelp",
-		"Microsoft.BingNews",
+		"Microsoft.BingNews"
 )
 
 $delW11Packages = Read-Host "Delete W11 preinstalled pacakges? (yN)"
