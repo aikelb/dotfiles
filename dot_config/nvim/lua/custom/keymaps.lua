@@ -6,11 +6,11 @@ map("n", "<C-n>", ":Neotree toggle<CR>", { desc = "Toggle neotree" })
 -- Tabs
 map("n", "<Tab>", ":BufferLineCycleNext<CR>", { desc = "Cycle Next Tab" })
 map("n", "<S-Tab>", ":BufferLineCyclePrev<CR>", { desc = "Cycle Previous Tab" })
-map("n", "<A-w>", ":bd<CR>", { desc = "Close current buffer" })
+map("n", "<A-w>", ":bp<bar>sp<bar>bn<bar>bd<CR>", { desc = "Close current buffer" })
 map("n", "<A-n>", ":enew<CR>", { desc = "New buffer" })
 
 -- Telescope workspace
-map ("n", "<leader>wd", ":Telescope neovim-project discover<CR>", { desc = "[W]orkspace [D]iscover"})
+map("n", "<leader>wd", ":Telescope neovim-project discover<CR>", { desc = "[W]orkspace [D]iscover"})
 map("n", "<leader>wh", ":Telescope neovim-project history<CR>", { desc = "[W]orkspace [H]istory"})
 map("n", "<leader>wl", ":NeovimProjectLoadRecent<CR>", { desc = "[W]orkspace [L]oad Recent"})
 
