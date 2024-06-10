@@ -749,8 +749,11 @@ require('lazy').setup({
       --    for various frameworks/libraries/etc. but you will have to
       --    set up the ones that are useful for you.
       'rafamadriz/friendly-snippets',
+      'onsails/lspkind.nvim',
     },
     config = function()
+      local lspkind = require('lspkind')
+
       -- See `:help cmp`
       local cmp = require 'cmp'
       local luasnip = require 'luasnip'
@@ -821,7 +824,15 @@ require('lazy').setup({
           { name = 'nvim_lsp' },
           { name = 'luasnip' },
           { name = 'path' },
+          { name = 'copilot', group_index = 1, priority = 100 },
         },
+        formatting = {
+          format = lspkind.cmp_format({
+            mode = "symbol",
+            max_width = 50,
+            symbol_map = { Copilot = "" }
+          })
+        }
       }
     end,
   },
