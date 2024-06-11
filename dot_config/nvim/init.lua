@@ -824,13 +824,11 @@ require('lazy').setup({
           { name = 'nvim_lsp' },
           { name = 'luasnip' },
           { name = 'path' },
-          { name = 'copilot', group_index = 1, priority = 100 },
         },
         formatting = {
           format = lspkind.cmp_format({
             mode = "symbol",
             max_width = 50,
-            symbol_map = { Copilot = "" }
           })
         }
       }
