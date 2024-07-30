@@ -717,6 +717,14 @@ require('lazy').setup({
         glsl = { 'clang-format' },
         protobuf = { 'buf' },
       },
+      formatters = {
+        stylua = function ()
+          return { prepend_args = {
+            "--column-width", "85"
+          }
+        }
+        end,
+      },
     },
   },
 
