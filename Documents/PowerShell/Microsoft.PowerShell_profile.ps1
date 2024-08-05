@@ -96,3 +96,6 @@ if ($PSVersionTable.PSVersion -ge '7.4') {
 
 Invoke-Expression (&starship init powershell)
 Invoke-Expression (& { (zoxide init powershell | Out-String) })
+
+Set-Alias vi nvim
+Set-Alias vim nvim
