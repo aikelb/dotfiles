@@ -21,6 +21,15 @@ map("n", "<leader>fp", ":Telescope file_browser path=%:p:h select_buffer=true<CR
 -- Trailing spaces
 map("n", "<leader>ft", ":%s/\\s\\+$//e<CR>", {desc = "[F]ormat [T]railing spaces"})
 
+-- Mini Surround mappings
+map("n", "gsa", ":lua require('mini.surround').add()<CR>", { desc = "Add Surround" })
+map("n", "gsd", ":lua require('mini.surround').delete()<CR>", { desc = "Delete Surround" })
+map("n", "gsf", ":lua require('mini.surround').find()<CR>", { desc = "Find Surround" })
+map("n", "gsF", ":lua require('mini.surround').find_left()<CR>", { desc = "Find Surround Left" })
+map("n", "gsh", ":lua require('mini.surround').highlight()<CR>", { desc = "Highlight Surround" })
+map("n", "gsr", ":lua require('mini.surround').replace()<CR>", { desc = "Replace Surround" })
+map("n", "gsn", ":lua require('mini.surround').update_n_lines()<CR>", { desc = "Update Surround N Lines" })
+
 -- TIP: Disable arrow keys in normal mode
 -- vim.keymap.set('n', '<left>', '<cmd>echo "Use h to move!!"<CR>')
 -- vim.keymap.set('n', '<right>', '<cmd>echo "Use l to move!!"<CR>')
