@@ -42,6 +42,7 @@ vim.filetype.add({
 		texture_profiles = "protobuf",
 		tilemap = "protobuf",
 		tilesource = "protobuf",
+		njk = "jinja",
 	},
 })
 

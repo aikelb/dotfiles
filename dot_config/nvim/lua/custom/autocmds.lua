@@ -12,8 +12,12 @@ autocmd("VimResized", {
 -- 	command = "setfiletype lua",
 -- })
 
-autocmd({"BufNewFile", "BufRead"}, {
+autocmd({"bufnewfile", "bufread"}, {
 	pattern = "*.fp,*.vp,*.vsh,*.fsh",
 	command = "setfiletype glsl",
 })
 
+autocmd({"bufnewfile", "bufread"}, {
+	pattern = "*.njk",
+	command = "setfiletype html",
+})
