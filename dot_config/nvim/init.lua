@@ -697,11 +697,7 @@ require('lazy').setup({
         --
         astro = {},
         html = {},
-        cssls={},
-
-        jinja_lsp={
-          filetypes = { 'nunjucks', 'njk', 'jinja' },
-        },
+        cssls = {},
 
         lua_ls = {
           -- cmd = {...},
@@ -754,7 +750,7 @@ require('lazy').setup({
       -- for you, so that they are available from within Neovim.
       local ensure_installed = vim.tbl_keys(servers or {})
       vim.list_extend(ensure_installed, {
-        'stylua','prettier', 'shfmt', 'deno', 'taplo', 'clang-format', 'buf',
+        'stylua','prettier', 'shfmt', 'deno', 'taplo', 'clang-format', 'buf', 'djlint'
       })
       require('mason-tool-installer').setup { ensure_installed = ensure_installed }
 
@@ -813,7 +809,7 @@ require('lazy').setup({
         lua = { 'stylua' },
         javascript = { 'prettier' },
         css = { 'prettier' },
-        html = { 'prettier' },
+        html = { 'djlint', 'prettier' },
         yaml = { 'prettier' },
         markdown = { 'prettier' },
         sh = { 'shfmt' },
@@ -821,7 +817,6 @@ require('lazy').setup({
         json = { 'deno_fmt' },
         glsl = { 'clang-format' },
         protobuf = { 'buf' },
-        njk = { 'prettier' },
       },
       formatters = {
         stylua = function ()

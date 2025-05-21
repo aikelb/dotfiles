@@ -17,7 +17,3 @@ autocmd({"bufnewfile", "bufread"}, {
 	command = "setfiletype glsl",
 })
 
-autocmd({"bufnewfile", "bufread"}, {
-	pattern = "*.njk",
-	command = "setfiletype html",
-})
