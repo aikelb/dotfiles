@@ -2,8 +2,9 @@ return {
   'michaelrommel/nvim-silicon',
   lazy = true,
   cmd = 'Silicon',
+	main = "nvim-silicon",
   config = function()
-    require('silicon').setup {
+    require('nvim-silicon').setup {
       font = 'FiraCode Nerd Font=34',
       theme = 'Dracula',
       background = '#94e2d5',
