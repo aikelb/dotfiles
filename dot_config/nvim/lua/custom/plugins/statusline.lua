@@ -220,7 +220,7 @@ return {
     ---@diagnostic disable-next-line: duplicate-set-field
     statusline.section_filename = function(args)
       args = args or {}
-      local bufname = vim.api.nvim_buf_get_name(0)
+      local bufname = vim.lsp.get_clients(0)
       local filename = bufname ~= '' and vim.fn.fnamemodify(bufname, ':t')
         or '[Sin Nombre]'
       local path = bufname ~= '' and vim.fn.fnamemodify(bufname, ':.') or ''

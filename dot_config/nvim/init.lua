@@ -698,6 +698,7 @@ require('lazy').setup({
         astro = {},
         html = {},
         cssls = {},
+        nil_ls = {}, -- nix
 
         lua_ls = {
           -- cmd = {...},
@@ -750,7 +751,7 @@ require('lazy').setup({
       -- for you, so that they are available from within Neovim.
       local ensure_installed = vim.tbl_keys(servers or {})
       vim.list_extend(ensure_installed, {
-        'stylua','prettier', 'shfmt', 'deno', 'taplo', 'clang-format', 'buf', 'djlint'
+        'stylua','prettier', 'shfmt', 'deno', 'taplo', 'clang-format', 'buf', 'djlint', 'alejandra'
       })
       require('mason-tool-installer').setup { ensure_installed = ensure_installed }
 
@@ -817,6 +818,7 @@ require('lazy').setup({
         json = { 'deno_fmt' },
         glsl = { 'clang-format' },
         protobuf = { 'buf' },
+        nix = { 'alejandra' }
       },
       formatters = {
         stylua = function ()
