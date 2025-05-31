@@ -698,7 +698,7 @@ require('lazy').setup({
         astro = {},
         html = {},
         cssls = {},
-        nil_ls = {}, -- nix
+        -- nil_ls = {}, -- nix
 
         lua_ls = {
           -- cmd = {...},
