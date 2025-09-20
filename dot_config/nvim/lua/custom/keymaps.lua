@@ -30,6 +30,10 @@ map("n", "gsh", ":lua require('mini.surround').highlight()<CR>", { desc = "Highl
 map("n", "gsr", ":lua require('mini.surround').replace()<CR>", { desc = "Replace Surround" })
 map("n", "gsn", ":lua require('mini.surround').update_n_lines()<CR>", { desc = "Update Surround N Lines" })
 
+-- Defold
+map("n", "<leader>mr", ":wa<CR>:!make run<CR>", { desc = "Make run" })
+map("n", "<leader>mt", ":wa<CR>:!make test<CR>", { desc = "Make test" })
+
 -- TIP: Disable arrow keys in normal mode
 -- vim.keymap.set('n', '<left>', '<cmd>echo "Use h to move!!"<CR>')
 -- vim.keymap.set('n', '<right>', '<cmd>echo "Use l to move!!"<CR>')
