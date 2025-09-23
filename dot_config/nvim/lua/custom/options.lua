@@ -1,11 +1,11 @@
-local opt = vim.opt
+local o = vim.o
 
 -- Use tabs
-opt.autoindent = true
-opt.expandtab = false
-opt.tabstop = 2
-opt.shiftwidth = 2
-opt.softtabstop = 0
+o.autoindent = true
+o.expandtab = false
+o.tabstop = 2
+o.shiftwidth = 2
+o.softtabstop = 0
 
 vim.filetype.add({
 	extension = {
