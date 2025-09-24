@@ -1,5 +1,7 @@
 local o = vim.o
 
+vim.opt.termguicolors = true
+
 -- Use tabs
 o.autoindent = true
 o.expandtab = false
