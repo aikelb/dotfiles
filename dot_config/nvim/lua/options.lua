@@ -55,7 +55,16 @@ vim.o.splitbelow = true
 --   See `:help lua-options`
 --   and `:help lua-options-guide`
 vim.o.list = true
-vim.opt.listchars = { tab = '» ', trail = '·', nbsp = '␣' }
+vim.opt.showbreak = '↳'
+vim.opt.listchars = {
+  -- eol = '⏎',
+  tab = '› ',
+  trail = '·',
+  lead = '·',
+  nbsp = '␣',
+  extends = '…',
+  precedes = '…',
+}
 
 -- Preview substitutions live, as you type!
 vim.o.inccommand = 'split'
@@ -73,3 +82,4 @@ vim.o.confirm = true
 
 -- vim: ts=2 sts=2 sw=2 et
 require 'custom.options'
+
