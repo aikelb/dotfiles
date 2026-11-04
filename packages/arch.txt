@@ -1,0 +1,17 @@
+# Extra packages on top of Omarchy (installed with yay --needed, so overlaps are harmless).
+# One package per line; comments and blank lines are ignored.
+
+# Apps
+zen-browser-bin
+aseprite
+defold-bin
+picotron
+
+# Tools
+gopass
+wireguard-tools
+openresolv
+silicon
+ncdu
+tree
+luarocks

@@ -1,9 +1,10 @@
-[edit]
-	command = "nvim"
 [data]
-	email = "info@aitorlozano.com"
+    email = "info@aitorlozano.com"
 
-[interpreters.ps1]
-    command = "pwsh"
-    args = ["-NoLogo"]
+[edit]
+    command = "nvim"
 
+[git]
+    # `chezmoi add`, `re-add` and `edit` commit straight away; push stays manual.
+    autoCommit = true
+    autoPush = false

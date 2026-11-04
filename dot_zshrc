@@ -1,17 +1,9 @@
 export PATH="/usr/local/sbin:$PATH"
 
-alias vim='nvim'
-alias v='nvim'
-alias rpi='ssh rpi'
-alias brew-upgrade='brew update && brew upgrade && brew upgrade --cask && brew cleanup'
-alias lg='lazygit'
+[ -f "$HOME/.config/shell/aliases.sh" ] && source "$HOME/.config/shell/aliases.sh"
 
 eval "$(starship init zsh)"
 eval "$(zoxide init zsh)"
-
-export EDITOR=nvim
-
-export PATH="$HOME/.local/bin:$PATH"
 
 # pnpm global tools
 export PNPM_HOME="$HOME/Library/pnpm"

@@ -1,0 +1,7 @@
+{{ if eq .chezmoi.os "linux" -}}
+#!/bin/bash
+# Omarchy owns ~/.bashrc, so only add one line to load the shared aliases.
+line='[ -f "$HOME/.config/shell/aliases.sh" ] && source "$HOME/.config/shell/aliases.sh"'
+[ -f "$HOME/.bashrc" ] && ! grep -qxF "$line" "$HOME/.bashrc" && printf '\n%s\n' "$line" >> "$HOME/.bashrc"
+exit 0
+{{ end -}}

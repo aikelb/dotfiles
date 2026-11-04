@@ -1,0 +1,21 @@
+# macOS packages: `brew bundle --file=packages/Brewfile` (run automatically by chezmoi when this file changes).
+# Replace with your real set: brew bundle dump --file=- --describe   (then copy what you want to keep)
+
+# Shell
+brew "chezmoi"
+brew "starship"
+brew "zoxide"
+brew "fzf"
+brew "gopass"
+brew "gh"
+
+# Editor and dev
+brew "neovim"
+brew "ripgrep"
+brew "fd"
+brew "lazygit"
+brew "silicon"
+brew "btop"
+
+# Fonts
+cask "font-fira-code-nerd-font"

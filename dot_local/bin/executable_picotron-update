@@ -1,0 +1,202 @@
+#!/bin/bash
+# picotron-update — instala o actualiza Picotron (macOS) usando el enlace de
+# descarga personal de tu cuenta de Lexaloffle. Solo usa herramientas que ya
+# trae macOS (curl, unzip, ditto, xattr).
+#
+# Uso:
+#   picotron-update setup            guarda tu enlace personal (una sola vez por equipo)
+#   picotron-update check            compara la versión instalada con la última publicada
+#   picotron-update                  actualiza si hay versión nueva (añade --force para reinstalar)
+#   picotron-update install 0.3.0c   instala una versión concreta
+#   picotron-update rollback         vuelve a la versión que tenías antes de la última actualización
+#
+# Variables opcionales:
+#   PICOTRON_APP_DIR   carpeta donde vive Picotron.app (por defecto /Applications)
+#
+# Tus datos de Picotron (drive, picotron_config.txt, anywhen) están en
+# ~/Library/Application Support/Picotron y este script no los toca.
+
+set -euo pipefail
+
+CONFIG_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/picotron-update"
+CONFIG_FILE="$CONFIG_DIR/config"            # contiene "<email>/<token>" (es secreto: no lo subas a git)
+STATE_FILE="$CONFIG_DIR/installed_version"
+BACKUP_APP="$CONFIG_DIR/Picotron.previous.app"
+APP_DIR="${PICOTRON_APP_DIR:-/Applications}"
+APP="$APP_DIR/Picotron.app"
+CHANGELOG_URL="https://www.lexaloffle.com/dl/docs/picotron_changelog.txt"
+BASE_URL="https://www.lexaloffle.com/dl/user"
+ME="$(basename "$0")"
+WORK_DIR=""                                 # carpeta temporal de la descarga (se borra al salir)
+trap 'if [ -n "$WORK_DIR" ]; then rm -rf "$WORK_DIR"; fi' EXIT
+
+die()  { printf 'Error: %s\n' "$*" >&2; exit 1; }
+info() { printf '› %s\n' "$*"; }
+
+picotron_running() { pgrep -f "Picotron.app/Contents/MacOS" >/dev/null 2>&1; }
+
+load_config() {
+  if [ ! -f "$CONFIG_FILE" ]; then
+    die "No hay enlace guardado. Ejecuta primero: $ME setup"
+  fi
+  LEXA_USER_PATH="$(head -n 1 "$CONFIG_FILE")"
+  if [ -z "$LEXA_USER_PATH" ]; then
+    die "El archivo $CONFIG_FILE está vacío. Repite: $ME setup"
+  fi
+}
+
+# Primera cabecera de versión del changelog oficial (líneas tipo "	0.3.0d" o "	0.2.0h3:").
+latest_version() {
+  local log
+  log="$(curl -fsSL "$CHANGELOG_URL")" || die "No pude descargar el changelog de Lexaloffle."
+  printf '%s\n' "$log" | tr -d '\r' | awk '
+    !found && /^[ \t]+[0-9]+\.[0-9]+\.[0-9]+[a-z]?[0-9]*:?[ \t]*$/ {
+      gsub(/[ \t:]/, ""); print; found = 1
+    }'
+}
+
+installed_version() {
+  if [ ! -d "$APP" ]; then
+    echo "ninguna"
+  elif [ -f "$STATE_FILE" ]; then
+    head -n 1 "$STATE_FILE"
+  else
+    echo "desconocida"
+  fi
+}
+
+cmd_setup() {
+  echo "1. Entra en lexaloffle.com con tu cuenta y abre la página de descargas de Picotron."
+  echo "2. Clic derecho en la descarga de macOS → «Copiar dirección del enlace»."
+  echo "3. Pégalo aquí y pulsa Intro (no se verá en pantalla porque contiene tu token)."
+  local link user_path
+  read -r -s -p "Enlace: " link
+  echo
+  # Formato esperado: https://www.lexaloffle.com/dl/user/<email>/<token>/picotron_<versión>_osx.zip
+  user_path="$(printf '%s' "$link" \
+    | sed -nE 's#^https?://(www\.)?lexaloffle\.com/dl/user/([^/]+/[^/]+)/picotron_[^/]+\.zip.*$#\2#p')"
+  if [ -z "$user_path" ]; then
+    die "El enlace no tiene la forma .../dl/user/<email>/<token>/picotron_..._osx.zip. Copia el enlace tal cual, quita el token y pásamelo para ajustar el script."
+  fi
+  mkdir -p "$CONFIG_DIR"
+  chmod 700 "$CONFIG_DIR"
+  ( umask 077; printf '%s\n' "$user_path" > "$CONFIG_FILE" )
+  info "Enlace guardado en $CONFIG_FILE (solo legible por tu usuario)."
+  info "Prueba ahora: $ME check"
+}
+
+install_version() {
+  local ver="$1" zip new_app
+  case "$ver" in
+    ''|*[!0-9a-z.]*) die "Versión no válida: '$ver' (ejemplo: 0.3.0d)" ;;
+  esac
+  load_config
+  if picotron_running; then
+    die "Picotron está abierto. Ciérralo y vuelve a ejecutar $ME."
+  fi
+  if [ ! -w "$APP_DIR" ]; then
+    die "No puedo escribir en $APP_DIR. Usa PICOTRON_APP_DIR=~/Applications $ME"
+  fi
+
+  WORK_DIR="$(mktemp -d -t picotron-update)"
+  zip="$WORK_DIR/picotron_${ver}_osx.zip"
+
+  info "Descargando Picotron ${ver}…"
+  if ! curl -fL --retry 2 --progress-bar -o "$zip" \
+       "$BASE_URL/$LEXA_USER_PATH/picotron_${ver}_osx.zip"; then
+    die "No se pudo descargar. Si la versión existe, quizá tu enlace ha cambiado: repite $ME setup"
+  fi
+  if ! unzip -tq "$zip" >/dev/null 2>&1; then
+    die "Lo descargado no es un zip válido (¿una página web en lugar del archivo?)."
+  fi
+  unzip -q "$zip" -d "$WORK_DIR/x"
+  new_app="$(find "$WORK_DIR/x" -maxdepth 3 -type d -name 'Picotron.app' | head -n 1)" || true
+  if [ -z "$new_app" ]; then
+    die "No encuentro Picotron.app dentro del zip."
+  fi
+
+  mkdir -p "$CONFIG_DIR"
+  if [ -d "$APP" ]; then
+    info "Guardando la versión actual ($(installed_version)) como copia de seguridad…"
+    rm -rf "$BACKUP_APP"
+    installed_version > "$BACKUP_APP.version"
+    mv "$APP" "$BACKUP_APP"
+  fi
+
+  if ! ditto "$new_app" "$APP"; then
+    if [ -d "$BACKUP_APP" ]; then
+      rm -rf "$APP"
+      mv "$BACKUP_APP" "$APP"
+    fi
+    die "Falló la copia de la app; he dejado la versión anterior como estaba."
+  fi
+  xattr -dr com.apple.quarantine "$APP" 2>/dev/null || true
+  printf '%s\n' "$ver" > "$STATE_FILE"
+  info "Listo: Picotron $ver instalado en $APP"
+}
+
+cmd_check() {
+  local latest cur
+  latest="$(latest_version)"
+  if [ -z "$latest" ]; then
+    die "No encontré ninguna versión en el changelog (¿ha cambiado de formato?)."
+  fi
+  cur="$(installed_version)"
+  echo "Instalada: $cur"
+  echo "Última:    $latest"
+  if [ "$cur" = "$latest" ]; then
+    echo "Estás al día."
+  else
+    echo "Para actualizar: $ME"
+  fi
+}
+
+cmd_update() {
+  local force="${1:-}" latest cur
+  latest="$(latest_version)"
+  if [ -z "$latest" ]; then
+    die "No encontré ninguna versión en el changelog (¿ha cambiado de formato?)."
+  fi
+  cur="$(installed_version)"
+  if [ "$cur" = "$latest" ] && [ "$force" != "--force" ]; then
+    info "Ya tienes la última versión ($cur)."
+    return 0
+  fi
+  info "Instalada: $cur → nueva: $latest"
+  install_version "$latest"
+}
+
+cmd_rollback() {
+  local prev cur swap
+  if [ ! -d "$BACKUP_APP" ]; then
+    die "No hay ninguna versión anterior guardada."
+  fi
+  if picotron_running; then
+    die "Picotron está abierto. Ciérralo y vuelve a ejecutar $ME rollback."
+  fi
+  prev="$(head -n 1 "$BACKUP_APP.version" 2>/dev/null || echo desconocida)"
+  cur="$(installed_version)"
+  swap="$CONFIG_DIR/Picotron.swap.app"
+  rm -rf "$swap"
+  if [ -d "$APP" ]; then
+    mv "$APP" "$swap"
+  fi
+  mv "$BACKUP_APP" "$APP"
+  if [ -d "$swap" ]; then
+    mv "$swap" "$BACKUP_APP"
+    printf '%s\n' "$cur" > "$BACKUP_APP.version"
+  fi
+  printf '%s\n' "$prev" > "$STATE_FILE"
+  info "Restaurada la versión $prev (la $cur queda guardada como copia)."
+}
+
+case "${1:-update}" in
+  setup)          cmd_setup ;;
+  check)          cmd_check ;;
+  update)         cmd_update "${2:-}" ;;
+  --force)        cmd_update --force ;;
+  install)        install_version "${2:-}" ;;
+  rollback)       cmd_rollback ;;
+  -h|--help|help) sed -n '2,19p' "$0" | sed 's/^# \{0,1\}//' ;;
+  *)              die "Orden desconocida: $1 (usa $ME --help)" ;;
+esac

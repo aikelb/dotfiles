@@ -1,0 +1,15 @@
+#!/bin/bash
+# Make sure Picotron mounts personal folders. Picotron rewrites its own config,
+# so only missing lines are appended. Safe to run on every apply.
+{{ if eq .chezmoi.os "darwin" -}}
+cfg="$HOME/Library/Application Support/Picotron/picotron_config.txt"
+{{- else -}}
+cfg="$HOME/.lexaloffle/Picotron/picotron_config.txt"
+{{- end }}
+
+[ -f "$cfg" ] || exit 0   # Picotron not installed or never opened yet
+
+add() { grep -qxF "$1" "$cfg" || { printf '%s\n' "$1" >> "$cfg"; echo "picotron: added '$1'"; }; }
+
+[ -d "$HOME/git/shmup" ] && add "mount /shmup $HOME/git/shmup"
+exit 0

@@ -1,0 +1,18 @@
+#!/bin/bash
+# Re-runs whenever the package list for this OS changes.
+set -euo pipefail
+{{ if eq .chezmoi.os "darwin" -}}
+# Brewfile hash: {{ include "packages/Brewfile" | sha256sum }}
+if ! command -v brew >/dev/null; then
+  echo "Homebrew missing: install it from https://brew.sh and run chezmoi apply again" >&2
+  exit 1
+fi
+brew bundle --no-upgrade --file="{{ .chezmoi.sourceDir }}/packages/Brewfile"
+{{- else if eq .chezmoi.os "linux" -}}
+# arch.txt hash: {{ include "packages/arch.txt" | sha256sum }}
+if command -v yay >/dev/null; then
+  grep -vE '^\s*(#|$)' "{{ .chezmoi.sourceDir }}/packages/arch.txt" | yay -S --needed --noconfirm -
+else
+  echo "yay not found, skipping packages" >&2
+fi
+{{- end }}

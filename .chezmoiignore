@@ -1,24 +1,16 @@
-## All
+# Repo-only files (never deployed)
 README.md
+archive
+content
+docs
+packages
 
-## Windows
-{{if (eq .chezmoi.os "windows") }}
-init.sh
+{{ if ne .chezmoi.os "darwin" }}
+# macOS only
 .zshrc
+.local/bin/picotron-update
 {{ end }}
 
-## macOS
-{{if (eq .chezmoi.os "darwin") }}
-init.ps1
-AppData
-PowerShell
-Documents
-{{ end }}
-
-## Linux
-{{if (eq .chezmoi.os "linux") }}
-init.ps1
-AppData
-PowerShell
-Documents
+{{ if ne .chezmoi.os "linux" }}
+# Linux only
 {{ end }}
