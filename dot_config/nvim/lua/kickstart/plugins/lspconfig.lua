@@ -335,7 +335,7 @@ return {
               format = {
                 enable = true,
                 defaultConfig = {
-                  indent_style = 'space',
+                  indent_style = 'tab',
                   indent_size = '2',
                 },
               },

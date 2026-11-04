@@ -4,10 +4,19 @@ vim.opt.termguicolors = true
 
 -- Use tabs
 o.autoindent = true
-o.expandtab = false
-o.tabstop = 2
-o.shiftwidth = 2
-o.softtabstop = 0
+local function configure_indentation(use_tabs, width)
+  if use_tabs then
+    vim.opt.expandtab = false
+    vim.opt.tabstop = width -- For visual appearance of tab characters
+    vim.opt.softtabstop = width -- For max jump distance of manual tabs
+    vim.opt.shiftwidth = 0 -- Use tabs indentation
+  else
+    vim.opt.expandtab = true
+    vim.opt.tabstop = width -- For max jump distance of manual tabs
+    vim.opt.shiftwidth = width -- For indentation
+  end
+end
+configure_indentation(true, 2)
 
 vim.filetype.add {
   extension = {
