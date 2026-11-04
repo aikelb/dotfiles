@@ -29,7 +29,7 @@ The first apply installs the package list for that OS, then writes the configs.
 | `dot_config/nvim` | LazyVim + personal layer (Defold filetypes, tabs, keymaps) |
 | `dot_config/zed`, `dot_config/starship.toml`, `dot_config/git` | App configs |
 | `dot_gitconfig.tmpl` | Git identity and settings |
-| `dot_local/bin` | macOS scripts: `ia` (local models), `picotron-update`, `xcode-clear` |
+| `dot_local/bin` | macOS scripts: `ia` + `ia-bench` (local models), `picotron-update`, `xcode-clear` |
 | `docs/` | Notes, e.g. [Picotron setup and carts](docs/picotron.md) |
 | `content/` | Wallpapers (kept in the repo, not deployed) |
 | `archive/windows` | Old PowerShell setup, not deployed |

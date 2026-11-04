@@ -1,0 +1,612 @@
+#!/usr/bin/env python3
+# ia-bench — compara los modelos del lanzador `ia` en este Mac.
+#
+# Lanza cada modelo con `ia <modelo>`, le pasa las mismas pruebas y guarda
+# respuestas, velocidad y puntuaciones en ~/models/bench/resultados/<fecha>/.
+#
+# Uso:
+#   ia-bench                      → todos los modelos (descarga los que falten)
+#   ia-bench ocrx ocrm mimo       → solo esos
+#   ia-bench --solo-instalados    → salta los que no estén descargados
+#   ia-bench --rapido             → menos tokens de razonamiento (más rápido)
+#
+# Pruebas
+#   Documento (modelos con visión): transcribir la página y extraer campos a JSON.
+#   Texto (modelos de chat/agente): razonar sobre el documento, programar
+#   (se ejecutan tests de verdad), llamar herramientas y redactar un correo.
+#
+# Solo usa la biblioteca estándar de Python (vale el python3 de macOS).
+
+import base64
+import datetime
+import glob
+import json
+import os
+import re
+import shutil
+import signal
+import subprocess
+import sys
+import tempfile
+import time
+import unicodedata
+import urllib.error
+import urllib.request
+
+HOME = os.path.expanduser("~")
+BENCH = os.path.join(HOME, "models", "bench")
+TEST_DIR = os.path.join(BENCH, "test")
+PORT = int(os.environ.get("IA_PORT", "8080"))
+BASE = "http://127.0.0.1:%d" % PORT
+IA = os.environ.get("IA_BIN") or shutil.which("ia") or os.path.join(HOME, ".local", "bin", "ia")
+
+# nombre en ia → (descripción, tamaño de descarga en GB, pruebas)
+MODELOS = [
+    ("ocr",    "Xiaomi-OCR-0 (0,8B)",      0.9, ["doc"]),
+    ("9b",     "Bonsai 2 9B",              3.5, ["texto"]),
+    ("mimo",   "MiMo-V2.6 9B",             6.8, ["doc", "texto"]),
+    ("27b",    "Bonsai 2 27B",             7.8, ["texto"]),
+]
+
+# Prompt de transcripción que recomienda cada modelo de OCR
+PROMPT_TRANSCRIBIR = {
+    "ocr": ("Extract all information from the main body of the document image and represent it "
+            "in markdown format, ignoring headers and footers. Tables should be expressed in OTSL "
+            "format, formulas in the document should be represented using LATEX format, and the "
+            "parsing should be organized according to the reading order."),
+}
+PROMPT_TRANSCRIBIR_GENERAL = ("Transcribe todo el texto de este documento a Markdown, respetando "
+                              "las tablas. No resumas, no traduzcas y no añadas comentarios.")
+
+# ---------------------------------------------------------------- referencia
+
+CAMPOS = {  # lo que tiene que salir al extraer el documento de prueba
+    "referencia_catastral": "5051914DR5755S0001DT",
+    "direccion": "CL GUELDERA 4 P.R.STA.CRUZ DEL ROMERAL",
+    "codigo_postal": "35107",
+    "municipio": "SAN BARTOLOME DE TIRAJANA",
+    "clase": "URBANO",
+    "uso_principal": "Residencial",
+    "superficie_construida_m2": "117",
+    "anio_construccion": "2004",
+    "superficie_parcela_m2": "149",
+    "tipo_parcela": "Parcela construida sin division horizontal",
+    "registro": "SAN BARTOLOME DE TIRAJANA 1",
+    "codigo_registral_unico": "35012000242270",
+    "fecha_coordinacion": "16/03/2016",
+}
+# trozos que una transcripción completa debería contener
+CLAVES_TRANSCRIPCION = [
+    "CONSULTA DESCRIPTIVA Y GRAFICA", "5051914DR5755S0001DT", "CL GUELDERA 4",
+    "P.R.STA.CRUZ DEL ROMERAL", "35107", "SAN BARTOLOME DE TIRAJANA", "LAS PALMAS",
+    "URBANO", "Residencial", "117 m2", "2004", "VIVIENDA", "1/00/01", "1/01/01",
+    "1/00/02", "1/01/02", "149 m2", "Parcela construida sin division horizontal",
+    "SAN BARTOLOME DE TIRAJANA 1", "35012000242270", "16/03/2016",
+    "20 de Octubre de 2026",
+]
+FILAS_TABLA = [("1/00/01", "56"), ("1/01/01", "39"), ("1/00/02", "9"), ("1/01/02", "13")]
+
+
+def norm(s):
+    s = unicodedata.normalize("NFKD", str(s))
+    s = "".join(c for c in s if not unicodedata.combining(c))
+    s = s.replace("²", "2").lower()
+    return re.sub(r"\s+", " ", s).strip()
+
+
+def solo_digitos(s):
+    return re.sub(r"\D", "", str(s))
+
+# ---------------------------------------------------------------- utilidades
+
+
+def log(msg=""):
+    print(msg, flush=True)
+
+
+def http_json(method, path, body=None, timeout=1800):
+    data = json.dumps(body).encode() if body is not None else None
+    req = urllib.request.Request(BASE + path, data=data, method=method,
+                                 headers={"Content-Type": "application/json"})
+    with urllib.request.urlopen(req, timeout=timeout) as r:
+        return json.loads(r.read().decode() or "{}")
+
+
+def servidor_listo():
+    try:
+        with urllib.request.urlopen(BASE + "/health", timeout=3) as r:
+            return r.status == 200
+    except Exception:
+        return False
+
+
+def ia(*args, **kw):
+    env = dict(os.environ, IA_YES="1", IA_PORT=str(PORT))
+    return subprocess.run([IA] + list(args), env=env, capture_output=True, text=True, **kw)
+
+
+def instalado(nombre):
+    r = ia("list")
+    for linea in r.stdout.splitlines():
+        partes = linea.split()
+        if len(partes) >= 2 and partes[0] == nombre:
+            return "✓" in linea
+    return False
+
+
+def swap_mb():
+    try:
+        out = subprocess.run(["sysctl", "-n", "vm.swapusage"], capture_output=True, text=True).stdout
+        m = re.search(r"used = ([\d.,]+)M", out)
+        return float(m.group(1).replace(",", ".")) if m else None
+    except Exception:
+        return None
+
+
+def rss_servidor_mb():
+    try:
+        pids = subprocess.run(["pgrep", "-f", os.environ.get("IA_BENCH_PATRON", "llama-server")], capture_output=True, text=True).stdout.split()
+        total = 0
+        for pid in pids:
+            out = subprocess.run(["ps", "-o", "rss=", "-p", pid], capture_output=True, text=True).stdout.strip()
+            if out:
+                total += int(out)
+        return round(total / 1024) if total else None
+    except Exception:
+        return None
+
+
+def version_llama():
+    exe = shutil.which("llama-server") or "/opt/homebrew/bin/llama-server"
+    try:
+        out = subprocess.run([exe, "--version"], capture_output=True, text=True, timeout=20)
+        txt = (out.stdout + out.stderr).strip().splitlines()
+        return " ".join(l for l in txt if "version" in l.lower())[:200] or "?"
+    except Exception:
+        return "no encontrado"
+
+
+def chat(messages, max_tokens, temperature=None, tools=None, extra=None):
+    body = {"messages": messages, "max_tokens": max_tokens, "stream": False}
+    if temperature is not None:
+        body["temperature"] = temperature
+    if tools:
+        body["tools"] = tools
+    if extra:
+        body.update(extra)
+    t0 = time.time()
+    try:
+        r = http_json("POST", "/v1/chat/completions", body)
+    except urllib.error.HTTPError as e:
+        return {"error": "HTTP %d: %s" % (e.code, e.read().decode(errors="replace")[:500]),
+                "segundos": round(time.time() - t0, 1)}
+    except Exception as e:
+        return {"error": repr(e), "segundos": round(time.time() - t0, 1)}
+    seg = time.time() - t0
+    msg = (r.get("choices") or [{}])[0].get("message", {}) or {}
+    t = r.get("timings") or {}
+    u = r.get("usage") or {}
+    gen = t.get("predicted_n") or u.get("completion_tokens") or 0
+    return {
+        "contenido": msg.get("content") or "",
+        "razonamiento": msg.get("reasoning_content") or "",
+        "tool_calls": msg.get("tool_calls") or [],
+        "fin": (r.get("choices") or [{}])[0].get("finish_reason"),
+        "segundos": round(seg, 1),
+        "tokens_prompt": t.get("prompt_n") or u.get("prompt_tokens"),
+        "tokens_generados": gen,
+        "tok_s_prompt": round(t["prompt_per_second"], 1) if t.get("prompt_per_second") else None,
+        "tok_s_generacion": round(t["predicted_per_second"], 1) if t.get("predicted_per_second")
+        else (round(gen / seg, 1) if gen and seg else None),
+    }
+
+
+def imagen_data_url(ruta):
+    with open(ruta, "rb") as f:
+        return "data:image/png;base64," + base64.b64encode(f.read()).decode()
+
+
+def bloque_json(texto):
+    """Último objeto JSON del texto (quita ```json … ``` si lo hay)."""
+    candidatos = re.findall(r"\{.*?\}", texto or "", flags=re.S)
+    for c in reversed(re.findall(r"\{[\s\S]*\}", texto or "") + candidatos):
+        try:
+            return json.loads(c)
+        except Exception:
+            continue
+    return None
+
+# ---------------------------------------------------------------- pruebas: documento
+
+
+def prueba_transcribir(nombre, paginas):
+    prompt = PROMPT_TRANSCRIBIR.get(nombre, PROMPT_TRANSCRIBIR_GENERAL)
+    contenido = [{"type": "image_url", "image_url": {"url": imagen_data_url(p)}} for p in paginas]
+    contenido.append({"type": "text", "text": prompt})
+    r = chat([{"role": "user", "content": contenido}], max_tokens=3000, temperature=0,
+             extra={"chat_template_kwargs": {"enable_thinking": False}})
+    texto = norm(r.get("contenido", ""))
+    aciertos = [k for k in CLAVES_TRANSCRIPCION if norm(k) in texto]
+    filas = sum(1 for cod, sup in FILAS_TABLA
+                if re.search(re.escape(cod) + r"[^0-9]{1,40}" + sup + r"\b", texto))
+    r["puntos"] = round(100 * (len(aciertos) + filas) / (len(CLAVES_TRANSCRIPCION) + len(FILAS_TABLA)))
+    r["faltan"] = [k for k in CLAVES_TRANSCRIPCION if k not in aciertos]
+    r["filas_tabla_ok"] = filas
+    return r
+
+
+def prueba_extraer(nombre, paginas):
+    claves = list(CAMPOS)
+    lista = ", ".join('"%s"' % k for k in claves)
+    prompt = ("Extract the %s. Format the output as a JSON object with keys: %s. "
+              "If an item is not in the image, use \"###\"." % (lista, lista))
+    contenido = [{"type": "image_url", "image_url": {"url": imagen_data_url(p)}} for p in paginas]
+    contenido.append({"type": "text", "text": prompt})
+    r = chat([{"role": "user", "content": contenido}], max_tokens=1200, temperature=0,
+             extra={"chat_template_kwargs": {"enable_thinking": False}})
+    datos = bloque_json(r.get("contenido", "")) or {}
+    ok, mal = [], {}
+    for k, esperado in CAMPOS.items():
+        v = datos.get(k, "")
+        if k.endswith("_m2") or k in ("anio_construccion", "codigo_postal", "codigo_registral_unico"):
+            bien = solo_digitos(v).startswith(solo_digitos(esperado)) and solo_digitos(esperado) != ""
+        elif k == "fecha_coordinacion":
+            bien = solo_digitos(v) == solo_digitos(esperado)
+        else:
+            bien = norm(esperado) in norm(v) or (norm(v) and norm(v) in norm(esperado) and len(norm(v)) > 0.8 * len(norm(esperado)))
+        if bien:
+            ok.append(k)
+        else:
+            mal[k] = v
+    r["json_valido"] = bool(datos)
+    r["puntos"] = round(100 * len(ok) / len(CAMPOS))
+    r["campos_mal"] = mal
+    return r
+
+# ---------------------------------------------------------------- pruebas: texto
+
+
+def prueba_razonar(referencia, max_tokens):
+    prompt = (
+        "Este es el texto de una consulta catastral:\n\n" + referencia + "\n\n"
+        "1) Suma las superficies de la tabla CONSTRUCCIÓN y di si coincide con la superficie construida.\n"
+        "2) ¿Cuántos años tiene la construcción en 2026?\n"
+        "3) ¿Qué porcentaje de la superficie gráfica de la parcela supone la superficie construida? (1 decimal)\n"
+        "Explica brevemente y termina con UNA línea JSON exactamente así: "
+        '{"suma": <número>, "coincide": <true|false>, "antiguedad": <número>, "porcentaje": <número>}')
+    r = chat([{"role": "user", "content": prompt}], max_tokens=max_tokens)
+    d = bloque_json(r.get("contenido", "")) or {}
+    pts = 0
+    try:
+        pts += 25 if float(d.get("suma")) == 117 else 0
+    except Exception:
+        pass
+    pts += 25 if d.get("coincide") is True or str(d.get("coincide")).lower() in ("true", "si", "sí") else 0
+    try:
+        pts += 25 if float(d.get("antiguedad")) == 22 else 0
+    except Exception:
+        pass
+    try:
+        pts += 25 if abs(float(str(d.get("porcentaje")).replace("%", "").replace(",", ".")) - 78.5) <= 0.2 else 0
+    except Exception:
+        pass
+    r["json"] = d
+    r["puntos"] = pts
+    return r
+
+
+TESTS_CODIGO = r'''
+import json, sys
+fallos = []
+def check(nombre, cond):
+    if not cond:
+        fallos.append(nombre)
+T1 = """Destino    Escalera/Planta/Puerta   Superficie m2
+VIVIENDA 1/00/01 56
+VIVIENDA 1/01/01 39
+VIVIENDA 1/00/02 9
+VIVIENDA 1/01/02 13
+"""
+T2 = """
+Destino\tEscalera/Planta/Puerta\tSuperficie m2
+  VIVIENDA        1/00/01     70
+ELEMENTOS COMUNES   1/00/03   12
+ALMACEN\t1/-1/01\t20
+GARAJE   1/-1/02    15
+
+"""
+def probar(nombre, fn):
+    try:
+        if not fn():
+            fallos.append(nombre)
+    except Exception as e:
+        fallos.append("%s: %r" % (nombre, e))
+probar("t1_filas", lambda: len(parse_tabla(T1)) == 4)
+probar("t1_primera", lambda: parse_tabla(T1)[0] == {"destino": "VIVIENDA", "escalera": "1", "planta": "00", "puerta": "01", "superficie": 56})
+probar("t1_totales", lambda: total_por_planta(parse_tabla(T1)) == {"00": 65, "01": 52})
+probar("t2_filas", lambda: len(parse_tabla(T2)) == 4)
+probar("t2_multipalabra", lambda: any(f.get("destino") == "ELEMENTOS COMUNES" and f.get("superficie") == 12 for f in parse_tabla(T2)))
+probar("t2_sotano", lambda: total_por_planta(parse_tabla(T2)) == {"00": 82, "-1": 35})
+probar("vacio", lambda: parse_tabla("") == [] and total_por_planta([]) == {})
+print(json.dumps({"fallos": fallos, "total": 7}))
+'''
+
+
+def prueba_codigo(max_tokens):
+    prompt = (
+        "Escribe en Python 3 dos funciones, sin dependencias externas:\n\n"
+        "1. `parse_tabla(texto)` recibe el texto de una tabla de construcción del catastro como esta:\n\n"
+        "Destino    Escalera/Planta/Puerta   Superficie m2\n"
+        "VIVIENDA 1/00/01 56\nELEMENTOS COMUNES 1/00/03 12\nALMACEN 1/-1/01 20\n\n"
+        "y devuelve una lista de diccionarios con las claves destino (str), escalera (str), planta (str), "
+        "puerta (str) y superficie (int). Ignora la cabecera y las líneas vacías. El destino puede tener "
+        "varias palabras y las columnas pueden estar separadas por espacios o tabuladores.\n"
+        "2. `total_por_planta(filas)` devuelve un dict {planta: suma de superficies}.\n\n"
+        "Devuelve solo el código en un bloque ```python.")
+    r = chat([{"role": "user", "content": prompt}], max_tokens=max_tokens)
+    bloques = re.findall(r"```(?:python|py)?\s*\n(.*?)```", r.get("contenido", ""), flags=re.S)
+    codigo = next((b for b in reversed(bloques) if "def parse_tabla" in b), None)
+    if codigo is None and "def parse_tabla" in r.get("contenido", ""):
+        codigo = r["contenido"]
+    r["codigo"] = codigo or ""
+    if not codigo:
+        r["puntos"] = 0
+        r["tests"] = "sin código"
+        return r
+    with tempfile.TemporaryDirectory() as d:
+        ruta = os.path.join(d, "prueba.py")
+        with open(ruta, "w") as f:
+            f.write(codigo + "\n\n" + TESTS_CODIGO)
+        try:
+            p = subprocess.run([sys.executable, "-I", ruta], cwd=d, capture_output=True,
+                               text=True, timeout=20)
+            res = json.loads(p.stdout.strip().splitlines()[-1])
+            r["tests"] = res
+            r["puntos"] = round(100 * (res["total"] - len(res["fallos"])) / res["total"])
+        except Exception as e:
+            r["tests"] = "error al ejecutar: %r" % (e,)
+            r["puntos"] = 0
+    return r
+
+
+HERRAMIENTAS = [
+    {"type": "function", "function": {
+        "name": "buscar_catastro",
+        "description": "Devuelve los datos catastrales de un inmueble a partir de su referencia catastral.",
+        "parameters": {"type": "object", "properties": {
+            "referencia": {"type": "string", "description": "Referencia catastral de 20 caracteres"}},
+            "required": ["referencia"]}}},
+    {"type": "function", "function": {
+        "name": "calcular_cuota_hipoteca",
+        "description": "Calcula la cuota mensual de una hipoteca a tipo fijo.",
+        "parameters": {"type": "object", "properties": {
+            "importe": {"type": "number", "description": "Importe del préstamo en euros"},
+            "anios": {"type": "integer", "description": "Plazo en años"},
+            "interes_anual": {"type": "number", "description": "Tipo de interés anual en porcentaje, p. ej. 3.5"}},
+            "required": ["importe", "anios", "interes_anual"]}}},
+]
+
+
+def _args(tc):
+    try:
+        a = tc.get("function", {}).get("arguments")
+        return json.loads(a) if isinstance(a, str) else (a or {})
+    except Exception:
+        return {}
+
+
+def prueba_herramientas(max_tokens):
+    casos = []
+    r1 = chat([{"role": "user", "content": "¿Qué datos tiene el catastro del inmueble 5051914DR5755S0001DT?"}],
+              max_tokens=max_tokens, tools=HERRAMIENTAS)
+    ok1 = any(tc.get("function", {}).get("name") == "buscar_catastro"
+              and str(_args(tc).get("referencia", "")).strip().upper() == "5051914DR5755S0001DT"
+              for tc in r1.get("tool_calls", []))
+    casos.append({"caso": "catastro", "ok": ok1, "tool_calls": r1.get("tool_calls"),
+                  "contenido": r1.get("contenido", "")[:400], "error": r1.get("error")})
+    r2 = chat([{"role": "user", "content": "¿Cuánto pagaría al mes por una hipoteca de 180.000 € a 30 años al 2,9 %?"}],
+              max_tokens=max_tokens, tools=HERRAMIENTAS)
+    ok2 = False
+    for tc in r2.get("tool_calls", []):
+        a = _args(tc)
+        try:
+            ok2 = ok2 or (tc.get("function", {}).get("name") == "calcular_cuota_hipoteca"
+                          and float(a.get("importe")) == 180000 and int(float(a.get("anios"))) == 30
+                          and abs(float(a.get("interes_anual")) - 2.9) < 1e-6)
+        except Exception:
+            pass
+    casos.append({"caso": "hipoteca", "ok": ok2, "tool_calls": r2.get("tool_calls"),
+                  "contenido": r2.get("contenido", "")[:400], "error": r2.get("error")})
+    seg = (r1.get("segundos") or 0) + (r2.get("segundos") or 0)
+    return {"casos": casos, "puntos": 50 * ok1 + 50 * ok2, "segundos": round(seg, 1),
+            "tok_s_generacion": r2.get("tok_s_generacion") or r1.get("tok_s_generacion"),
+            "error": r1.get("error") or r2.get("error")}
+
+
+def prueba_redactar(referencia, max_tokens):
+    prompt = ("Con estos datos catastrales:\n\n" + referencia + "\n\nEscribe un correo breve (máximo 120 palabras) "
+              "en español a una notaría pidiendo cita para revisar la compra de este inmueble. Incluye la "
+              "referencia catastral y la dirección. Solo el correo, con asunto.")
+    r = chat([{"role": "user", "content": prompt}], max_tokens=max_tokens)
+    t = r.get("contenido", "")
+    palabras = len(re.findall(r"\w+", t))
+    pts = 0
+    pts += 40 if "5051914DR5755S0001DT" in t.upper() else 0
+    pts += 30 if "gueldera" in norm(t) else 0
+    pts += 30 if 30 <= palabras <= 160 else 0
+    r["palabras"] = palabras
+    r["puntos"] = pts
+    return r
+
+# ---------------------------------------------------------------- bucle principal
+
+
+def esperar_servidor(proc, nombre, log_path, limite_min=90):
+    t0 = time.time()
+    ultimo = 0
+    while time.time() - t0 < limite_min * 60:
+        if servidor_listo():
+            return round(time.time() - t0, 1)
+        if proc.poll() is not None:
+            return None
+        if time.time() - ultimo > 30:
+            ultimo = time.time()
+            try:
+                with open(log_path, "rb") as f:
+                    f.seek(max(0, os.path.getsize(log_path) - 400))
+                    cola = f.read().decode(errors="replace").replace("\r", "\n").strip().splitlines()
+                linea = cola[-1][:110] if cola else ""
+            except Exception:
+                linea = ""
+            log("   … esperando a %s (%ds)  %s" % (nombre, time.time() - t0, linea))
+        time.sleep(2)
+    return None
+
+
+def hay_servidor():
+    return subprocess.run(["pgrep", "-f", os.environ.get("IA_BENCH_PATRON", "llama-server")], capture_output=True).returncode == 0
+
+
+def parar():
+    """Para el modelo y espera a que el puerto quede libre (si no, el siguiente no arranca)."""
+    ia("stop")
+    for _ in range(20):
+        if not hay_servidor() and not servidor_listo():
+            return
+        time.sleep(1)
+    subprocess.run(["pkill", "-9", "-f", os.environ.get("IA_BENCH_PATRON", "llama-server")], capture_output=True)
+    time.sleep(2)
+
+
+def main():
+    args = [a for a in sys.argv[1:] if not a.startswith("--")]
+    solo_instalados = "--solo-instalados" in sys.argv
+    rapido = "--rapido" in sys.argv
+    max_tok = 1500 if rapido else 4096
+    if "-h" in sys.argv or "--help" in sys.argv:
+        print(__doc__ or open(__file__).read().split("\n\n")[0])
+        return
+
+    paginas = sorted(glob.glob(os.path.join(TEST_DIR, "*.png")))
+    ref_path = os.path.join(TEST_DIR, "referencia.txt")
+    if not paginas or not os.path.exists(ref_path):
+        sys.exit("✗ Faltan las páginas de prueba en %s" % TEST_DIR)
+    referencia = open(ref_path, encoding="utf-8").read()
+
+    elegidos = [m for m in MODELOS if not args or m[0] in args]
+    desconocidos = set(args) - {m[0] for m in MODELOS}
+    if desconocidos:
+        sys.exit("✗ No conozco: %s. Opciones: %s" % (", ".join(desconocidos), " ".join(m[0] for m in MODELOS)))
+
+    salida = os.path.join(BENCH, "resultados", datetime.datetime.now().strftime("%Y-%m-%d_%H%M"))
+    os.makedirs(salida, exist_ok=True)
+    resumen = {"fecha": datetime.datetime.now().isoformat(timespec="seconds"),
+               "llama_cpp": version_llama(), "rapido": rapido, "modelos": {}}
+    log("ia-bench · %d modelos · resultados en %s" % (len(elegidos), salida))
+    log("llama.cpp: %s" % resumen["llama_cpp"])
+    log("⚠️  Se parará cualquier modelo que esté corriendo. Ctrl+C para cancelar.\n")
+
+    def guardar():
+        with open(os.path.join(salida, "resultados.json"), "w", encoding="utf-8") as f:
+            json.dump(resumen, f, ensure_ascii=False, indent=2)
+        escribir_resumen(resumen, os.path.join(salida, "resumen.md"))
+
+    try:
+        for nombre, desc, gb, pruebas in elegidos:
+            log("=== %s · %s ===" % (nombre, desc))
+            res = {"descripcion": desc, "pruebas": {}}
+            resumen["modelos"][nombre] = res
+            ya = instalado(nombre)
+            res["ya_instalado"] = ya
+            if not ya:
+                if solo_instalados:
+                    log("   (no instalado, lo salto)\n")
+                    res["estado"] = "saltado"
+                    continue
+                libre = shutil.disk_usage(HOME).free / 1e9
+                if libre < gb + 3:
+                    log("   ✗ Solo quedan %.1f GB libres y hacen falta ~%.1f GB. Lo salto.\n" % (libre, gb))
+                    res["estado"] = "sin espacio"
+                    continue
+                log("   ↓ hay que descargarlo (~%.1f GB)" % gb)
+
+            parar()
+            swap0 = swap_mb()
+            log_path = os.path.join(salida, nombre + "-servidor.log")
+            lf = open(log_path, "w")
+            env = dict(os.environ, IA_YES="1", IA_PORT=str(PORT))
+            proc = subprocess.Popen([IA, nombre], stdout=lf, stderr=subprocess.STDOUT, env=env,
+                                    start_new_session=True)
+            listo = esperar_servidor(proc, nombre, log_path)
+            if listo is None:
+                log("   ✗ No arrancó (código %s). Mira %s\n" % (proc.returncode, log_path))
+                res["estado"] = "no arrancó"
+                try:
+                    os.killpg(proc.pid, signal.SIGTERM)
+                except Exception:
+                    pass
+                parar()
+                lf.close()
+                guardar()
+                continue
+            res["segundos_arranque"] = listo
+            log("   ✓ listo en %ss" % listo)
+
+            if "doc" in pruebas:
+                log("   · transcribir documento…")
+                res["pruebas"]["transcribir"] = prueba_transcribir(nombre, paginas)
+                log("     %s puntos" % res["pruebas"]["transcribir"].get("puntos"))
+                log("   · extraer campos a JSON…")
+                res["pruebas"]["extraer"] = prueba_extraer(nombre, paginas)
+                log("     %s puntos" % res["pruebas"]["extraer"].get("puntos"))
+            if "texto" in pruebas:
+                for clave, fn in (("razonar", lambda: prueba_razonar(referencia, max_tok)),
+                                  ("codigo", lambda: prueba_codigo(max_tok)),
+                                  ("herramientas", lambda: prueba_herramientas(max_tok)),
+                                  ("redactar", lambda: prueba_redactar(referencia, max_tok))):
+                    log("   · %s…" % clave)
+                    res["pruebas"][clave] = fn()
+                    p = res["pruebas"][clave]
+                    log("     %s puntos · %s s · %s tok/s" % (p.get("puntos"), p.get("segundos"), p.get("tok_s_generacion")))
+                    guardar()
+
+            res["memoria_servidor_mb"] = rss_servidor_mb()
+            s1 = swap_mb()
+            res["swap_mb_antes"], res["swap_mb_despues"] = swap0, s1
+            res["estado"] = "ok"
+            try:
+                os.killpg(proc.pid, signal.SIGTERM)
+            except Exception:
+                pass
+            parar()
+            lf.close()
+            guardar()
+            log("")
+    except KeyboardInterrupt:
+        log("\nCancelado. Guardo lo que hay.")
+        parar()
+    guardar()
+    log("Hecho. Resumen: %s" % os.path.join(salida, "resumen.md"))
+
+
+def escribir_resumen(resumen, ruta):
+    filas = []
+    for nombre, r in resumen["modelos"].items():
+        p = r.get("pruebas", {})
+        vel = [x.get("tok_s_generacion") for x in p.values() if isinstance(x, dict) and x.get("tok_s_generacion")]
+        def pt(k):
+            return str(p[k].get("puntos")) if k in p and p[k].get("puntos") is not None else "–"
+        filas.append("| %s | %s | %s | %s | %s | %s | %s | %s | %s | %s |" % (
+            nombre, r.get("estado", "…"), pt("transcribir"), pt("extraer"), pt("razonar"), pt("codigo"),
+            pt("herramientas"), pt("redactar"),
+            ("%.1f" % (sum(vel) / len(vel))) if vel else "–",
+            r.get("memoria_servidor_mb") or "–"))
+    with open(ruta, "w", encoding="utf-8") as f:
+        f.write("# ia-bench · %s\n\nllama.cpp: %s\n\n" % (resumen["fecha"], resumen["llama_cpp"]))
+        f.write("| modelo | estado | transcribir | extraer | razonar | código | herramientas | redactar | tok/s | RAM MB |\n")
+        f.write("|---|---|---|---|---|---|---|---|---|---|\n")
+        f.write("\n".join(filas) + "\n\nPuntos sobre 100. Las respuestas completas están en resultados.json.\n")
+
+
+if __name__ == "__main__":
+    main()

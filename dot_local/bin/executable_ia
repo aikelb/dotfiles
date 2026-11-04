@@ -1,28 +1,25 @@
 #!/usr/bin/env bash
 # ia — lanzador de modelos locales
 # Un solo modelo cargado cada vez, siempre en http://localhost:8080
-# (así Hermes, el editor, etc. apuntan siempre a la misma URL).
+# (así Hermes, OpenCode, etc. apuntan siempre a la misma URL).
 #
 # Uso:
 #   ia              → menú (marca qué modelos están instalados)
-#   ia 27b          → Bonsai 2 27B (chat, preguntas difíciles)
-#   ia 9b           → Bonsai 2 9B  (agentes, uso diario, más rápido)
-#   ia hermes       → Bonsai 2 9B en modo agente: 64K de contexto, caché KV
-#                     cuantizada y plantilla jinja (lo que pide Hermes)
-#   ia ocr          → Unlimited-OCR (documentos escaneados)
-#   ia vision       → MiniCPM-V 1B (imágenes, muy ligero)
-#   ia lfm          → LFM2.5 8B-A1B (Liquid AI, agentes y herramientas, muy rápido)
-#   ia mimo         → MiMo-V2.6 9B (Xiaomi, programar y agentes, también ve imágenes)
+#   ia mimo         → MiMo-V2.6 9B: programar, agentes, imágenes y documentos (64K)
+#   ia hermes       → Bonsai 2 9B en modo agente para Hermes (64K, más rápido que mimo)
+#   ia 9b           → Bonsai 2 9B normal (16K)
+#   ia 27b          → Bonsai 2 27B: preguntas difíciles (lento, cierra todo lo demás)
+#   ia ocr          → Xiaomi-OCR-0: pasar documentos a texto/Markdown, muy rápido
 #   ia list         → ver qué está instalado y cuánto ocupa
-#   ia rm <modelo>  → borrar un modelo (27b|9b|ocr|vision|lfm|mimo), pide confirmación
+#   ia rm <modelo>  → borrar un modelo (mimo|9b|27b|ocr), pide confirmación
 #   ia stop         → parar el modelo que esté corriendo
 #
 # Variables opcionales:
-#   IA_CTX=32768 ia 27b    → cambiar el contexto (por defecto 16384)
-#   IA_PORT=8081 ia ocr    → cambiar el puerto  (por defecto 8080)
-#   IA_KV=q4_0 ia hermes   → caché KV más pequeña si va justo de memoria
-#                            (por defecto q8_0; en hermes el contexto es 65536)
+#   IA_CTX=32768 ia 27b    → cambiar el contexto
+#   IA_PORT=8081 ia ocr    → cambiar el puerto (por defecto 8080)
+#   IA_KV=q4_0 ia mimo     → caché KV más pequeña si va justo de memoria (por defecto q8_0)
 #   IA_NOVISION=1 ia mimo  → sin la parte de imágenes (ahorra ~0,9 GB de memoria)
+#   IA_YES=1 ia …          → no preguntar nada (lo usa ia-bench)
 
 set -euo pipefail
 
@@ -36,20 +33,17 @@ BREW_SERVER="$(command -v llama-server || echo /opt/homebrew/bin/llama-server)" 
 # Dónde vive cada modelo
 B27_DIR="$DEMO/models/bonsai2-gguf/27B"
 B27_FILE="$B27_DIR/Ternary-Bonsai-2-27B-PQ2_0.gguf"
-VISION_FILE="$MODELS/minicpm-v4.7-1b-q8_0.gguf"
-VISION_MMPROJ="$MODELS/minicpm-v4.7-1b-q8_0-mmproj.gguf"
 # Los que se bajan con -hf quedan en una de estas cachés
 HF_CACHES=("$HOME/.cache/huggingface/hub" "$HOME/Library/Caches/llama.cpp")
 
-# Patrones con los que aparece cada modelo en las cachés
+# Patrones con los que aparece cada modelo en las cachés, y repos
 PAT_27B="Ternary-Bonsai-2-27B"
 PAT_9B="Ternary-Bonsai-2-9B"
-PAT_OCR="Unlimited-OCR"
-PAT_VISION="MiniCPM-V-4.7-1B"
-PAT_LFM="LFM2.5-8B-A1B"
-LFM_REPO="LiquidAI/LFM2.5-8B-A1B-GGUF:Q4_K_M"
+B9_REPO="prism-ml/Ternary-Bonsai-2-9B-gguf:PQ2_0"
 PAT_MIMO="MiMo-V2.6-Distill-Qwen-9B"
 MIMO_REPO="bartowski/MiMo-V2.6-Distill-Qwen-9B-GGUF:Q4_K_M"
+PAT_OCR="Xiaomi-OCR-0"
+OCR_REPO="prithivMLmods/Xiaomi-OCR-0-GGUF:Q6_K"
 
 # ---------- comprobaciones ----------
 
@@ -66,10 +60,8 @@ in_hf_cache() {  # $1 = patrón
 
 has_27b()    { [[ -f "$B27_FILE" ]] || in_hf_cache "$PAT_27B"; }
 has_9b()     { in_hf_cache "$PAT_9B"; }
-has_ocr()    { in_hf_cache "$PAT_OCR"; }
-has_vision() { [[ -f "$VISION_FILE" && -f "$VISION_MMPROJ" ]] || in_hf_cache "$PAT_VISION"; }
-has_lfm()    { in_hf_cache "$PAT_LFM"; }
 has_mimo()   { in_hf_cache "$PAT_MIMO"; }
+has_ocr()    { in_hf_cache "$PAT_OCR"; }
 
 mark() {  # $1 = función de comprobación, $2 = tamaño aproximado de descarga
   if "$1"; then echo "✓"; else echo "↓ se descargará (~$2)"; fi
@@ -77,12 +69,10 @@ mark() {  # $1 = función de comprobación, $2 = tamaño aproximado de descarga
 
 list_installed() {
   echo "Modelos:"
-  echo "  27b     $(mark has_27b '7,8 GB')"
-  echo "  9b      $(mark has_9b '3,5 GB')"
-  echo "  ocr     $(mark has_ocr '2,5 GB')"
-  echo "  vision  $(mark has_vision '2,2 GB')"
-  echo "  lfm     $(mark has_lfm '5,2 GB')"
   echo "  mimo    $(mark has_mimo '6,8 GB')"
+  echo "  9b      $(mark has_9b '3,5 GB')"
+  echo "  27b     $(mark has_27b '7,8 GB')"
+  echo "  ocr     $(mark has_ocr '0,9 GB')"
   echo
   echo "Espacio ocupado:"
   du -sh "$MODELS"/* "${HF_CACHES[@]}" 2>/dev/null | sort -h | sed 's/^/  /' || true
@@ -101,8 +91,10 @@ stop_all() {
 check_memory() {
   if pgrep -fi "mlx ?studio|vmlx" >/dev/null 2>&1; then
     echo "⚠️  MLX Studio está abierto y puede estar ocupando memoria."
-    read -r -p "   ¿Continuar igualmente? [s/N] " r
-    [[ "$r" =~ ^[sS]$ ]] || exit 1
+    if [[ -z "${IA_YES:-}" ]]; then
+      read -r -p "   ¿Continuar igualmente? [s/N] " r
+      [[ "$r" =~ ^[sS]$ ]] || exit 1
+    fi
   fi
   echo "   Swap ahora: $(sysctl -n vm.swapusage)"
 }
@@ -141,17 +133,15 @@ add_if_exists() {
   done
 }
 
-delete_model() {  # $1 = 27b|9b|ocr|vision|lfm|mimo
+delete_model() {  # $1 = mimo|9b|27b|ocr
   TARGETS=()
   local label
   case "$1" in
-    27b)    label="Bonsai 2 27B";   collect_cache "$PAT_27B";    add_if_exists "$B27_DIR" ;;
-    9b)     label="Bonsai 2 9B";    collect_cache "$PAT_9B" ;;
-    ocr)    label="Unlimited-OCR";  collect_cache "$PAT_OCR" ;;
-    vision) label="MiniCPM-V 1B";   collect_cache "$PAT_VISION"; add_if_exists "$VISION_FILE" "$VISION_MMPROJ" ;;
-    lfm)    label="LFM2.5 8B-A1B";  collect_cache "$PAT_LFM" ;;
-    mimo)   label="MiMo-V2.6 9B";   collect_cache "$PAT_MIMO" ;;
-    *) echo "Uso: ia rm [27b|9b|ocr|vision|lfm|mimo]"; exit 1 ;;
+    mimo)   label="MiMo-V2.6 9B";  collect_cache "$PAT_MIMO" ;;
+    9b)     label="Bonsai 2 9B";   collect_cache "$PAT_9B" ;;
+    27b)    label="Bonsai 2 27B";  collect_cache "$PAT_27B"; add_if_exists "$B27_DIR" ;;
+    ocr)    label="Xiaomi-OCR-0";  collect_cache "$PAT_OCR" ;;
+    *) echo "Uso: ia rm [mimo|9b|27b|ocr]"; exit 1 ;;
   esac
 
   if [[ ${#TARGETS[@]} -eq 0 ]]; then
@@ -173,45 +163,37 @@ delete_model() {  # $1 = 27b|9b|ocr|vision|lfm|mimo
 
 delete_menu() {
   echo "¿Qué modelo borro?"
-  has_27b    && echo "  1) Bonsai 2 27B"
+  has_mimo   && echo "  1) MiMo-V2.6 9B"
   has_9b     && echo "  2) Bonsai 2 9B"
-  has_ocr    && echo "  3) Unlimited-OCR"
-  has_vision && echo "  4) MiniCPM-V 1B"
-  has_lfm    && echo "  5) LFM2.5 8B-A1B"
-  has_mimo   && echo "  6) MiMo-V2.6 9B"
+  has_27b    && echo "  3) Bonsai 2 27B"
+  has_ocr    && echo "  4) Xiaomi-OCR-0"
   echo "  q) Volver"
   read -r -p "> " opt
   case "$opt" in
-    1) delete_model 27b ;;
+    1) delete_model mimo ;;
     2) delete_model 9b ;;
-    3) delete_model ocr ;;
-    4) delete_model vision ;;
-    5) delete_model lfm ;;
-    6) delete_model mimo ;;
+    3) delete_model 27b ;;
+    4) delete_model ocr ;;
     *) exit 0 ;;
   esac
 }
 
 # ---------- lanzar ----------
 
-run_27b() {
-  need "$DEMO/scripts/start_llama_server.sh"
-  has_27b || echo "↓ El 27B no está descargado; el script de Prism lo bajará (~7,8 GB)."
+run_mimo() {
+  # MiMo-V2.6-Distill-Qwen-9B: Qwen3.5-9B reentrenado por Xiaomi para
+  # programar y agentes. Q4_K_M (5,8 GB) + visión (0,9 GB, se baja sola).
+  # 64K de contexto con caché KV q8_0 (~1 GB) para que valga para Hermes.
+  need "$BREW_SERVER"
+  has_mimo || echo "↓ Primera vez: descargando MiMo-V2.6 9B (~6,8 GB con visión)…"
+  CTX="${IA_CTX:-65536}"
+  local kv="${IA_KV:-q8_0}" extra=()
+  if [[ -n "${IA_NOVISION:-}" ]]; then extra+=(--no-mmproj); fi
   stop_all; check_memory
-  banner "Bonsai 2 27B · razonamiento medio"
-  cd "$DEMO"
-  BONSAI_CTX="$CTX" BONSAI_KV4=0 exec ./scripts/start_llama_server.sh \
-    --chat-template-kwargs '{"reasoning_effort":"medium"}' \
-    -np 1 --port "$PORT"
-}
-
-run_9b() {
-  need "$FORK_SERVER"
-  has_9b || echo "↓ Primera vez: descargando Bonsai 2 9B (~3,5 GB)…"
-  stop_all; check_memory
-  banner "Bonsai 2 9B"
-  exec "$FORK_SERVER" -hf prism-ml/Ternary-Bonsai-2-9B-gguf:PQ2_0 \
-    -c "$CTX" -np 1 --port "$PORT"
+  banner "MiMo-V2.6 9B · programar, agentes e imágenes · caché KV $kv"
+  exec "$BREW_SERVER" -hf "$MIMO_REPO" ${extra[@]+"${extra[@]}"} \
+    -c "$CTX" -np 1 --port "$PORT" --jinja \
+    -fa on --cache-type-k "$kv" --cache-type-v "$kv"
 }
 
 run_hermes() {
@@ -224,89 +206,62 @@ run_hermes() {
   fi
   stop_all; check_memory
   banner "Bonsai 2 9B · modo agente (Hermes) · caché KV $kv"
-  exec "$FORK_SERVER" -hf prism-ml/Ternary-Bonsai-2-9B-gguf:PQ2_0 \
+  exec "$FORK_SERVER" -hf "$B9_REPO" \
     -c "$CTX" -np 1 --port "$PORT" \
     -fa on --cache-type-k "$kv" --cache-type-v "$kv" \
     --jinja
 }
 
+run_9b() {
+  need "$FORK_SERVER"
+  has_9b || echo "↓ Primera vez: descargando Bonsai 2 9B (~3,5 GB)…"
+  stop_all; check_memory
+  banner "Bonsai 2 9B"
+  exec "$FORK_SERVER" -hf "$B9_REPO" -c "$CTX" -np 1 --port "$PORT"
+}
+
+run_27b() {
+  need "$DEMO/scripts/start_llama_server.sh"
+  has_27b || echo "↓ El 27B no está descargado; el script de Prism lo bajará (~7,8 GB)."
+  stop_all; check_memory
+  banner "Bonsai 2 27B · razonamiento medio"
+  cd "$DEMO"
+  BONSAI_CTX="$CTX" BONSAI_KV4=0 exec ./scripts/start_llama_server.sh \
+    --chat-template-kwargs '{"reasoning_effort":"medium"}' \
+    -np 1 --port "$PORT"
+}
+
 run_ocr() {
+  # Xiaomi-OCR-0 (0,8B, Apache 2.0). Q6_K + visión (~0,9 GB).
+  # Prompt recomendado: "Extract all information from the main body of the document
+  # image and represent it in markdown format…" (ver ia-bench).
   need "$BREW_SERVER"
-  has_ocr || echo "↓ Primera vez: descargando Unlimited-OCR (~2,5 GB)…"
+  has_ocr || echo "↓ Primera vez: descargando Xiaomi-OCR-0 (~0,9 GB)…"
+  CTX="${IA_CTX:-16384}"
   stop_all; check_memory
-  banner "Unlimited-OCR · prompt: document parsing."
-  exec "$BREW_SERVER" -hf sahilchachra/Unlimited-OCR-GGUF:Q4_K_M \
-    -c "$CTX" -np 1 --port "$PORT"
-}
-
-run_vision() {
-  need "$BREW_SERVER"
-  stop_all; check_memory
-  banner "MiniCPM-V 4.7 1B"
-  if [[ -f "$VISION_FILE" && -f "$VISION_MMPROJ" ]]; then
-    exec "$BREW_SERVER" -m "$VISION_FILE" --mmproj "$VISION_MMPROJ" \
-      -c "$CTX" -np 1 --port "$PORT"
-  else
-    in_hf_cache "$PAT_VISION" || echo "↓ Primera vez: descargando MiniCPM-V 1B (~2,2 GB)…"
-    exec "$BREW_SERVER" -hf openbmb/MiniCPM-V-4.7-1B-gguf \
-      -c "$CTX" -np 1 --port "$PORT"
-  fi
-}
-
-run_lfm() {
-  # LFM2.5-8B-A1B: MoE de 8,3B con solo 1,5B activos → muy rápido.
-  # Casi toda la red es convolucional (solo 6 capas de atención), así que
-  # 64K de contexto apenas gasta memoria: vale tal cual para Hermes.
-  need "$BREW_SERVER"
-  has_lfm || echo "↓ Primera vez: descargando LFM2.5 8B-A1B (~5,2 GB)…"
-  CTX="${IA_CTX:-65536}"
-  stop_all; check_memory
-  banner "LFM2.5 8B-A1B · agentes y herramientas"
-  exec "$BREW_SERVER" -hf "$LFM_REPO" \
-    -c "$CTX" -np 1 --port "$PORT" --jinja \
-    --temp 0.2 --top-k 80 --repeat-penalty 1.05
-}
-
-run_mimo() {
-  # MiMo-V2.6-Distill-Qwen-9B: Qwen3.5-9B reentrenado por Xiaomi para
-  # programar y agentes. Q4_K_M (5,8 GB) + visión (0,9 GB, se baja sola).
-  # 64K de contexto con caché KV q8_0 (~1 GB) para que valga para Hermes.
-  need "$BREW_SERVER"
-  has_mimo || echo "↓ Primera vez: descargando MiMo-V2.6 9B (~6,8 GB con visión)…"
-  CTX="${IA_CTX:-65536}"
-  local kv="${IA_KV:-q8_0}" extra=()
-  if [[ -n "${IA_NOVISION:-}" ]]; then extra+=(--no-mmproj); fi
-  stop_all; check_memory
-  banner "MiMo-V2.6 9B · programar y agentes · caché KV $kv"
-  exec "$BREW_SERVER" -hf "$MIMO_REPO" ${extra[@]+"${extra[@]}"} \
-    -c "$CTX" -np 1 --port "$PORT" --jinja \
-    -fa on --cache-type-k "$kv" --cache-type-v "$kv"
+  banner "Xiaomi-OCR-0 · documentos a Markdown"
+  exec "$BREW_SERVER" -hf "$OCR_REPO" -c "$CTX" -np 1 --port "$PORT" -fa on --jinja \
+    --chat-template-kwargs '{"enable_thinking":false}'
 }
 
 # ---------- menú ----------
 
 menu() {
   echo "¿Qué hago?"
-  echo "  1) Bonsai 2 27B   – chat y preguntas difíciles   $(mark has_27b '7,8 GB')"
-  echo "  2) Bonsai 2 9B    – agentes y uso diario         $(mark has_9b '3,5 GB')"
-  echo "  3) Unlimited-OCR  – documentos escaneados        $(mark has_ocr '2,5 GB')"
-  echo "  4) MiniCPM-V 1B   – imágenes rápidas             $(mark has_vision '2,2 GB')"
-  echo "  5) Bonsai 2 9B    – modo agente para Hermes (64K) $(mark has_9b '3,5 GB')"
-  echo "  6) LFM2.5 8B-A1B  – agentes rápidos (prueba, 64K) $(mark has_lfm '5,2 GB')"
-  echo "  7) MiMo-V2.6 9B   – programar + imágenes (64K)  $(mark has_mimo '6,8 GB')"
+  echo "  1) MiMo-V2.6 9B  – programar, agentes, imágenes (64K)  $(mark has_mimo '6,8 GB')"
+  echo "  2) Bonsai 2 9B   – Hermes, agente rápido (64K)        $(mark has_9b '3,5 GB')"
+  echo "  3) Bonsai 2 27B  – preguntas difíciles (lento)        $(mark has_27b '7,8 GB')"
+  echo "  4) Xiaomi-OCR    – documentos a texto                 $(mark has_ocr '0,9 GB')"
   echo "  l) Ver instalados y espacio ocupado"
   echo "  b) Borrar un modelo"
   echo "  p) Parar el modelo en marcha"
   echo "  q) Salir"
   read -r -p "> " opt
   case "$opt" in
-    1) run_27b ;;
-    2) run_9b ;;
-    3) run_ocr ;;
-    4) run_vision ;;
-    5) run_hermes ;;
-    6) run_lfm ;;
-    7) run_mimo ;;
+    1) run_mimo ;;
+    2) run_hermes ;;
+    3) run_27b ;;
+    4) run_ocr ;;
     l|L) list_installed ;;
     b|B) delete_menu ;;
     p|P) stop_all; echo "Listo." ;;
@@ -315,16 +270,14 @@ menu() {
 }
 
 case "${1:-}" in
-  27b)    run_27b ;;
-  9b)     run_9b ;;
-  ocr)    run_ocr ;;
-  vision) run_vision ;;
-  hermes|agent) run_hermes ;;
-  lfm)    run_lfm ;;
-  mimo)   run_mimo ;;
-  list)   list_installed ;;
-  rm)     delete_model "${2:-}" ;;
-  stop)   stop_all; echo "Listo." ;;
-  "")     menu ;;
-  *)      echo "Uso: ia [27b|9b|hermes|ocr|vision|lfm|mimo|list|rm <modelo>|stop]"; exit 1 ;;
+  mimo)          run_mimo ;;
+  hermes|agent)  run_hermes ;;
+  9b)            run_9b ;;
+  27b)           run_27b ;;
+  ocr|ocrx)      run_ocr ;;
+  list)          list_installed ;;
+  rm)            delete_model "${2:-}" ;;
+  stop)          stop_all; echo "Listo." ;;
+  "")            menu ;;
+  *)             echo "Uso: ia [mimo|hermes|9b|27b|ocr|list|rm <modelo>|stop]"; exit 1 ;;
 esac

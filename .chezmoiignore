@@ -10,6 +10,7 @@ packages
 .zshrc
 .local/bin/picotron-update
 .local/bin/ia
+.local/bin/ia-bench
 .local/bin/xcode-clear
 {{ end }}
 
