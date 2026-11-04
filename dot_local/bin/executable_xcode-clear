@@ -1,0 +1,38 @@
+#!/bin/bash
+# Xcode Simulator & DeviceSupport Cleanup Script
+
+echo "=== Before Cleanup ==="
+du -shc ~/Library/Developer/CoreSimulator ~/Library/Developer/Xcode 2>/dev/null | tail -1
+
+# 1. Delete unavailable simulators
+xcrun simctl delete unavailable 2>/dev/null
+echo "Deleted unavailable simulators"
+
+# 2. Clean CoreSimulator caches
+rm -rf ~/Library/Developer/CoreSimulator/Caches/*
+echo "Cleaned CoreSimulator caches"
+
+# 3. Clean old DeviceSupport (keep iOS 17+)
+for ver in 14 15 16; do
+    rm -rf ~/Library/Developer/Xcode/iOS\ DeviceSupport/${ver}.* 2>/dev/null
+done
+rm -rf ~/Library/Developer/Xcode/watchOS\ DeviceSupport/* 2>/dev/null
+rm -rf ~/Library/Developer/Xcode/tvOS\ DeviceSupport/* 2>/dev/null
+echo "Cleaned old DeviceSupport"
+
+# 4. Clean old DerivedData
+find ~/Library/Developer/Xcode/DerivedData -maxdepth 1 -type d -mtime +14 -exec rm -rf {} + 2>/dev/null
+echo "Cleaned stale DerivedData"
+
+# 5. Clean documentation cache
+rm -rf ~/Library/Developer/Xcode/DocumentationCache/* 2>/dev/null
+
+# 6. Clean SPM cache
+rm -rf ~/Library/Caches/org.swift.swiftpm/ 2>/dev/null
+
+# 7. Clean Xcode general caches
+rm -rf ~/Library/Caches/com.apple.dt.Xcode/* 2>/dev/null
+
+echo ""
+echo "=== After Cleanup ==="
+du -shc ~/Library/Developer/CoreSimulator ~/Library/Developer/Xcode 2>/dev/null | tail -1
