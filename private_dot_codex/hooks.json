@@ -1,0 +1,18 @@
+{
+	"description": "Herdr integration: reports agent state (idle/working/blocked) to the local Herdr socket.",
+	"hooks": {
+		"SessionStart": [
+			{
+				"hooks": [
+					{
+						"command": "bash '/Users/aike/.codex/herdr-agent-state.sh' session",
+						"description": "Herdr integration: report agent state",
+						"statusMessage": "Reporting state to Herdr",
+						"timeout": 10,
+						"type": "command"
+					}
+				]
+			}
+		]
+	}
+}

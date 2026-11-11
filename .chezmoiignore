@@ -12,6 +12,8 @@ packages
 .local/bin/ia
 .local/bin/ia-bench
 .local/bin/xcode-clear
+.codex
+Library
 {{ end }}
 
 {{ if ne .chezmoi.os "linux" }}

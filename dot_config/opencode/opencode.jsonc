@@ -1,0 +1,30 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  // Default for NEW sessions: DeepSeek paid API (own key, `opencode auth list` → DeepSeek).
+  // Fallback if DeepSeek is unavailable (auth/credit/outage): opencode/glm-5.3-flash-free ($0).
+  //   one-off: opencode -m opencode/glm-5.3-flash-free   ·   in a session: /models
+  // Cheaper DeepSeek option: deepseek/deepseek-flash.
+  // The local model below stays selectable at any time via /models.
+  "model": "deepseek/deepseek-v4-pro",
+
+  // Titles and summaries stay on the Mac: local model served by `ia` (llama.cpp) on port 8080.
+  // Start it first in another terminal: ia ornith
+  "small_model": "local/ornith",
+
+  "provider": {
+    "local": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "Local (ia)",
+      "options": {
+        "baseURL": "http://127.0.0.1:8080/v1"
+      },
+      "models": {
+        // llama-server serves whatever model is loaded; the name is just for OpenCode
+        "ornith": {
+          "name": "Ornith-1.5 9B (local)",
+          "limit": { "context": 65536, "output": 16384 }
+        }
+      }
+    }
+  }
+}
