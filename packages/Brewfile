@@ -57,7 +57,6 @@ brew "lazydocker"
 # ── IA y agentes ─────────────────────────────────────────────
 brew "herdr"             # multiplexor de agentes (+ plugin Ovis: herdr plugin install devswha.ovis)
 cask "codex"
-brew "llama.cpp"         # modelos locales (script ia)
 uv "huggingface-hub"
 npm "reasonix"
 

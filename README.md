@@ -22,6 +22,8 @@ The first apply installs the package list for that OS, then writes the configs.
 
 OpenCode is not in the package lists: install it with its official script (`curl -fsSL https://opencode.ai/v2/install | bash`), which also keeps it updated.
 
+llama.cpp (used by `ia`, macOS on Apple Silicon) isn't either: install it with the official llama.app script (`curl -LsSf https://llama.app/install.sh | sh`). It puts a single `llama` binary in `~/.local/bin` (`llama serve` replaces `llama-server`), tracks the latest nightly build and updates with `llama update`.
+
 ## What's here
 
 | Path | What |
