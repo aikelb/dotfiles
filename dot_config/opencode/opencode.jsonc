@@ -46,8 +46,8 @@
       // OpenCode compacts the conversation before it reaches it. Without it, a long
       // session re-sent 200-400K tokens per step and spent the weekly window in a day.
       // Full catalog: GET https://api.commandcode.ai/provider/v1/models
-      // Left out: Claude models (Messages API only; Claude Code covers them) and
-      // free models (glyph-cluster, inkling-2-small, flint), which don't run under ZDR.
+      // Left out: Claude models (Messages API only; Claude Code covers them).
+      // Free models can't run under ZDR: they live in `commandcode-free` below.
       "models": {
         "zai-org/GLM-5.3": { "name": "GLM-5.3", "limit": { "context": 131072, "output": 32768 } },
         "moonshotai/Kimi-K3.1-Pro": { "name": "Kimi K3.1 Pro", "limit": { "context": 131072, "output": 32768 } },
@@ -60,6 +60,23 @@
         "Qwen/Qwen4-Max": { "name": "Qwen4 Max", "limit": { "context": 131072, "output": 32768 } },
         "xiaomi/mimo-v2.6-pro": { "name": "MiMo V2.6 Pro", "limit": { "context": 131072, "output": 32768 } },
         "ornith/ornith-1.5-122b": { "name": "Ornith 1.5 122B", "limit": { "context": 131072, "output": 32768 } }
+      }
+    },
+    // Command Code free models, picked by hand only (/models). NO zero data
+    // retention: they may run under different provider terms (retained, used for
+    // training), so only for non-sensitive content. Daily quotas, $0, don't use the
+    // per-model allowances; Command Code needs $1 of balance on the account.
+    // Key: `/connect` → Other → provider id `commandcode-free` → the same key.
+    "commandcode-free": {
+      "npm": "@ai-sdk/openai-compatible",
+      "name": "Command Code FREE (no ZDR)",
+      "options": {
+        "baseURL": "https://api.commandcode.ai/provider/v1"
+      },
+      "models": {
+        "stealth/glyph-cluster:free": { "name": "Glyph Cluster (free, no ZDR)", "limit": { "context": 131072, "output": 32768 } },
+        "recursive/flint-v1.0:free": { "name": "Flint (free, no ZDR)", "limit": { "context": 131072, "output": 32768 } },
+        "thinkingmachines/inkling-2-small:free": { "name": "Inkling 2 Small (free, no ZDR)", "limit": { "context": 131072, "output": 32768 } }
       }
     },
     "local": {
