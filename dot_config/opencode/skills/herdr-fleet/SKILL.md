@@ -65,7 +65,9 @@ description: >
 |---|---|
 | Non-sensitive mechanics, code, docs, research | **Default: Command Code** (`commandcode/zai-org/GLM-5.3`, set as `model` in `~/.config/opencode/opencode.jsonc`). Every request carries `x-cmd-zdr: 1` |
 | Hard task the user asked to give to a stronger worker | `commandcode/moonshotai/Kimi-K3.1-Pro` |
-| Worker runs out of a model's allowance | Pre-authorized by the user: Claude may switch that worker to another `commandcode/` model, in this order: `deepseek/deepseek-v4.1-flash` → `z-ai/glm-5.3-flash` → `inclusionai/ling-3.1-flash` → `MiniMaxAI/MiniMax-M3` (`/models` in the pane; opencode v2.3+ has no `-m` flag), and must tell the user it did so. If the 5-hour or weekly window is hit, the whole plan is paused: stop and report the reset time (local/ornith only if the user says so). Never buy credits, turn on auto reload or remove the ZDR header. A `422 cmd_zdr_no_providers` means that model has no ZDR route: pick another, don't work around it. Any other model switch still follows the Dialog gate. |
+| Worker runs out of one **model's** monthly allowance (a limit error that names the model or its allowance, not the plan) | Pre-authorized by the user, no need to ask: Claude switches that worker to the next `commandcode/` model with allowance left, in this order: `zai-org/GLM-5.3` → `deepseek/deepseek-v4.1-flash` → `z-ai/glm-5.3-flash` → `inclusionai/ling-3.1-flash` → `MiniMaxAI/MiniMax-M3` (`/models` in the pane; opencode v2.3+ has no `-m` flag), re-dispatches the task and tells the user which model it moved to and why. |
+| Command Code **plan** window hit: `429 RATE_LIMITED`, "You've reached your 5-hour/weekly usage limit for your plan … resets at <time>" | The whole plan is paused and every `commandcode/` model will fail the same way, so don't switch models. Stop dispatching to Command Code workers, report the reset time (convert to Atlantic/Canary) and keep the work with Claude. No local/ornith or other provider unless the user asks for it. |
+| Always, with Command Code | Never buy credits, turn on auto reload or remove the ZDR header. A `422 cmd_zdr_no_providers` means that model has no ZDR route: pick another, don't work around it. Any other model switch still follows the Dialog gate. |
 | Privacy-critical, no external egress | local/ornith — only if the `ia` llama-server is up on port 8080; verify before use |
 | codex / ChatGPT Go | Only on explicit user request; stop on usage-limit screens |
 | Claude | Never dispatch from this skill. Claude panes belong to the user |
@@ -100,6 +102,13 @@ Notes (opencode v2.3.0):
   with `sqlite3 -readonly` against the grant.
 
 ### 2. Dispatch
+**One task, one OpenCode session.** Context is re-sent on every step and is what
+burns the Command Code plan (one long session re-sent 200-400K tokens per step
+and used the weekly window in a day). Before each new task on an existing
+worker: `herdr pane send-text <pane> "/new"` + `herdr agent send-keys <name>
+enter`, then check the status line still shows the intended model (pick it
+again with `/models` if not). Only follow-ups to the same task stay in the
+same session.
 ```
 herdr agent prompt <name> "<single, concrete task + path allowlist>" --wait --timeout 120000
 ```

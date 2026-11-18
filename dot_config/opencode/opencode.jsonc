@@ -14,8 +14,8 @@
   //                 inclusionai/ling-3.1-flash (boosted allowances)
   //   allowance out the next bulk model, then MiniMaxAI/MiniMax-M3 (2x deal)
   //   DeepSeek costs double on weekdays 01–04 and 06–10 UTC
-  //   window hit    the 5-hour/weekly windows are plan-wide: switching model doesn't help,
-  //                 use local/ornith or wait (never buy credits for it)
+  //   window hit    the 5-hour/weekly windows are plan-wide: switching model doesn't help.
+  //                 Wait for the reset; work stays with Claude (never buy credits for it)
   //
   //   switch model: /models in the session (opencode v2.3 has no -m flag)
   "model": "commandcode/zai-org/GLM-5.3",
@@ -42,21 +42,24 @@
         // a model without one fails with 422 cmd_zdr_no_providers (no fallback).
         "headers": { "x-cmd-zdr": "1" }
       },
+      // `limit` is a cost budget, not the models' real window (GLM-5.3 takes ~1M):
+      // OpenCode compacts the conversation before it reaches it. Without it, a long
+      // session re-sent 200-400K tokens per step and spent the weekly window in a day.
       // Full catalog: GET https://api.commandcode.ai/provider/v1/models
       // Left out: Claude models (Messages API only; Claude Code covers them) and
       // free models (glyph-cluster, inkling-2-small, flint), which don't run under ZDR.
       "models": {
-        "zai-org/GLM-5.3": { "name": "GLM-5.3" },
-        "moonshotai/Kimi-K3.1-Pro": { "name": "Kimi K3.1 Pro" },
-        "moonshotai/Kimi-K2.7-Code": { "name": "Kimi K2.7 Code" },
-        "deepseek/deepseek-v4-pro": { "name": "DeepSeek V4 Pro" },
-        "deepseek/deepseek-v4.1-flash": { "name": "DeepSeek V4.1 Flash" },
-        "z-ai/glm-5.3-flash": { "name": "GLM-5.3 Flash" },
-        "inclusionai/ling-3.1-flash": { "name": "Ling 3.1 Flash" },
-        "MiniMaxAI/MiniMax-M3": { "name": "MiniMax M3" },
-        "Qwen/Qwen4-Max": { "name": "Qwen4 Max" },
-        "xiaomi/mimo-v2.6-pro": { "name": "MiMo V2.6 Pro" },
-        "ornith/ornith-1.5-122b": { "name": "Ornith 1.5 122B" }
+        "zai-org/GLM-5.3": { "name": "GLM-5.3", "limit": { "context": 131072, "output": 32768 } },
+        "moonshotai/Kimi-K3.1-Pro": { "name": "Kimi K3.1 Pro", "limit": { "context": 131072, "output": 32768 } },
+        "moonshotai/Kimi-K2.7-Code": { "name": "Kimi K2.7 Code", "limit": { "context": 131072, "output": 32768 } },
+        "deepseek/deepseek-v4-pro": { "name": "DeepSeek V4 Pro", "limit": { "context": 131072, "output": 32768 } },
+        "deepseek/deepseek-v4.1-flash": { "name": "DeepSeek V4.1 Flash", "limit": { "context": 131072, "output": 32768 } },
+        "z-ai/glm-5.3-flash": { "name": "GLM-5.3 Flash", "limit": { "context": 131072, "output": 32768 } },
+        "inclusionai/ling-3.1-flash": { "name": "Ling 3.1 Flash", "limit": { "context": 131072, "output": 32768 } },
+        "MiniMaxAI/MiniMax-M3": { "name": "MiniMax M3", "limit": { "context": 131072, "output": 32768 } },
+        "Qwen/Qwen4-Max": { "name": "Qwen4 Max", "limit": { "context": 131072, "output": 32768 } },
+        "xiaomi/mimo-v2.6-pro": { "name": "MiMo V2.6 Pro", "limit": { "context": 131072, "output": 32768 } },
+        "ornith/ornith-1.5-122b": { "name": "Ornith 1.5 122B", "limit": { "context": 131072, "output": 32768 } }
       }
     },
     "local": {
