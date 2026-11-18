@@ -5,20 +5,40 @@
 #
 # Uso:
 #   ia              → menú (marca qué modelos están instalados)
-#   ia mimo         → MiMo-V2.6 9B: programar, agentes, imágenes y documentos (64K)
-#   ia hermes       → Bonsai 2 9B en modo agente para Hermes (64K, más rápido que mimo)
+#   ia ornith       → Ornith-1.5 9B: código, agentes, imágenes y documentos (64K)
+#                     Por defecto con MTP, visión y como mucho 2048 tokens pensando
+#                     (ganó en ia-bench el 9 nov 2026: código 7/7, documentos 100, ~15-20 tok/s)
+#   ia hermes       → Bonsai 2 9B en modo agente para Hermes (64K)
 #   ia 9b           → Bonsai 2 9B normal (16K)
-#   ia 27b          → Bonsai 2 27B: preguntas difíciles (lento, cierra todo lo demás)
 #   ia ocr          → Xiaomi-OCR-0: pasar documentos a texto/Markdown, muy rápido
+#   ia embla        → Embla 1 (en pruebas): MoE de 10B con 1B activo, muy rápido; solo chat (256K)
+#                     (su motor no admite herramientas ni imágenes). La primera vez clona y
+#                     compila embla-metal en ~/models/embla-metal (necesita Xcode o las
+#                     Command Line Tools) y descarga el modelo (5,6 GB).
+#   ia tags         → qué modelo usar para cada cosa (etiquetas)
+#   ia tags code    → solo los modelos con esa etiqueta
+#                     (code · agent · chat · vision · docs · ocr)
 #   ia list         → ver qué está instalado y cuánto ocupa
-#   ia rm <modelo>  → borrar un modelo (mimo|9b|27b|ocr), pide confirmación
+#   ia rm <modelo>  → borrar un modelo o borrador, pide confirmación
+#                     (ornith|9b|ocr, y los descartados: mimo|mimo-mtp|qwopus|ornith-dflash|dflash-qwen)
 #   ia stop         → parar el modelo que esté corriendo
 #
+# Decodificación especulativa de Ornith, como segundo argumento:
+#   ia ornith         → MTP (su propia cabeza, no descarga nada más). Es lo normal.
+#   ia ornith base    → sin decodificación especulativa
+#   ia ornith dflash  → borrador DFlash oficial (~0,8 GB; fue algo más lento que MTP)
+#   ia ornith ngram   → ngram-mod (no ayudó en las pruebas)
+#   Necesita un llama.cpp reciente (llama update).
+#
 # Variables opcionales:
-#   IA_CTX=32768 ia 27b    → cambiar el contexto
+#   IA_CTX=32768 ia 9b     → cambiar el contexto
 #   IA_PORT=8081 ia ocr    → cambiar el puerto (por defecto 8080)
-#   IA_KV=q4_0 ia mimo     → caché KV más pequeña si va justo de memoria (por defecto q8_0)
-#   IA_NOVISION=1 ia mimo  → sin la parte de imágenes (ahorra ~0,9 GB de memoria)
+#   IA_KV=q4_0 ia ornith   → caché KV más pequeña si va justo de memoria (por defecto q8_0)
+#   IA_NOVISION=1 ia ornith → sin la parte de imágenes (ahorra ~0,9 GB de memoria)
+#   IA_SPEC=dflash ia ornith → lo mismo que el segundo argumento
+#   IA_SPEC_N=3            → tokens que propone el borrador (mtp: 2, dflash: 8 por defecto)
+#   IA_THINK=4096 ia ornith → límite de tokens pensando (Ornith: 2048 por defecto; -1 = sin límite)
+#   IA_SERVER=fork ia …    → usar el llama-server del fork de Prism en vez de «llama serve»
 #   IA_YES=1 ia …          → no preguntar nada (lo usa ia-bench)
 
 set -euo pipefail
@@ -27,23 +47,151 @@ PORT="${IA_PORT:-8080}"
 CTX="${IA_CTX:-16384}"
 MODELS="$HOME/models"
 DEMO="$MODELS/Bonsai-demo"
-FORK_SERVER="$DEMO/bin/mac/llama-server"          # fork de Prism (para Bonsai)
-BREW_SERVER="$(command -v llama-server || echo /opt/homebrew/bin/llama-server)"  # llama.cpp normal
+FORK_SERVER="$DEMO/bin/mac/llama-server"          # fork de Prism (para Bonsai; no borres Bonsai-demo)
+LLAMA_BIN="$(command -v llama || echo "$HOME/.local/bin/llama")"  # llama.cpp normal (llama.app; «llama serve» = llama-server)
 
-# Dónde vive cada modelo
-B27_DIR="$DEMO/models/bonsai2-gguf/27B"
-B27_FILE="$B27_DIR/Ternary-Bonsai-2-27B-PQ2_0.gguf"
 # Los que se bajan con -hf quedan en una de estas cachés
 HF_CACHES=("$HOME/.cache/huggingface/hub" "$HOME/Library/Caches/llama.cpp")
 
 # Patrones con los que aparece cada modelo en las cachés, y repos
-PAT_27B="Ternary-Bonsai-2-27B"
 PAT_9B="Ternary-Bonsai-2-9B"
 B9_REPO="prism-ml/Ternary-Bonsai-2-9B-gguf:PQ2_0"
-PAT_MIMO="MiMo-V2.6-Distill-Qwen-9B"
+PAT_MIMO="bartowski*MiMo-V2.6-Distill-Qwen-9B-GGUF"   # sin «MTP», para no confundirlo con mimo-mtp
 MIMO_REPO="bartowski/MiMo-V2.6-Distill-Qwen-9B-GGUF:Q4_K_M"
 PAT_OCR="Xiaomi-OCR-0"
 OCR_REPO="prithivMLmods/Xiaomi-OCR-0-GGUF:Q6_K"
+
+# En pruebas (9 nov 2026)
+PAT_MIMO_MTP="VitreousCut*MiMo-V2.6-Distill-Qwen-9B-MTP"
+MIMO_MTP_REPO="VitreousCut/MiMo-V2.6-Distill-Qwen-9B-MTP-GGUF:Q4_K_M"   # el Q4 de bartowski + cabeza MTP
+PAT_DFLASH_QWEN="Qwen3.5-9B-DFlash"
+DFLASH_QWEN_REPO="AtomicChat/Qwen3.5-9B-DFlash-GGUF:Q8_0"               # borrador genérico para Qwen3.5-9B
+PAT_ORNITH="Ornith-1.5-9B-GGUF"
+ORNITH_REPO="ornith-ai/Ornith-1.5-9B-GGUF:Q4_K_M"                       # MIT, trae MTP y visión
+PAT_ORNITH_DFLASH="Ornith-1.5-9B-DFlash"
+ORNITH_DFLASH_REPO="abenzerps/Ornith-1.5-9B-DFlash-GGUF:Q4_K_M"
+PAT_QWOPUS="Qwopus3-5-9B-Coder-Flash"
+QWOPUS_REPO="Jackrong/Qwopus3-5-9B-Coder-Flash-GGUF:Q4_K_M"            # Apache 2.0, trae MTP
+
+# Embla 1 (Sevren, MIT): no va con llama.cpp, usa su propio motor Metal (embla-metal, MIT).
+# El motor se clona y se compila con Swift la primera vez; el modelo (5,6 GB) va a la caché de HF.
+PAT_EMBLA="sevren-ai--Embla1-4bit"
+EMBLA_DIR="$MODELS/embla-metal"
+EMBLA_GIT="https://github.com/sevren-ai/embla-metal"
+EMBLA_COMMIT="ee3734ae67eba22008461bef18fd8fecbd2fab85"   # versión revisada el 17 nov 2026
+
+# Muestreo recomendado para programar (Ornith; Qwopus usa el de Qwen3.5)
+SAMPLING_CODE=(--temp 0.6 --top-p 0.95 --top-k 20 --min-p 0)
+
+# ---------- finalidad de cada modelo (etiquetas) ----------
+# Cambia aquí las etiquetas cuando decidas para qué queda cada modelo.
+#   code    programar con agentes (OpenCode)
+#   agent   agente general (Hermes), llamadas a herramientas
+#   chat    conversar y redactar
+#   vision  entender imágenes
+#   docs    leer documentos y extraer datos
+#   ocr     pasar documentos a texto, muy rápido
+ALL_TAGS="code agent chat vision docs ocr"
+MODEL_IDS="ornith hermes 9b ocr embla"
+
+tags_of() {
+  case "$1" in
+    ornith) echo "code agent chat vision docs" ;;
+    hermes) echo "agent chat" ;;
+    9b)     echo "chat" ;;
+    ocr)    echo "ocr docs" ;;
+    embla)  echo "chat" ;;   # su servidor no admite herramientas ni imágenes
+  esac
+}
+
+name_of() {
+  case "$1" in
+    ornith) echo "Ornith-1.5 9B · MTP, visión, 64K" ;;
+    hermes) echo "Bonsai 2 9B · modo Hermes, 64K" ;;
+    9b)     echo "Bonsai 2 9B · 16K" ;;
+    ocr)    echo "Xiaomi-OCR-0" ;;
+    embla)  echo "Embla 1 · MoE 10B, 1B activo, 256K" ;;
+  esac
+}
+
+testing_of() {  # modelos que aún están en pruebas
+  case "$1" in embla) return 0 ;; *) return 1 ;; esac
+}
+
+fmt_tags() {
+  local t out=""
+  for t in $(tags_of "$1"); do out="$out #$t"; done
+  echo "${out# }"
+}
+
+tag_desc() {
+  case "$1" in
+    code)   echo "programar con agentes (OpenCode)" ;;
+    agent)  echo "agente general y herramientas (Hermes)" ;;
+    chat)   echo "conversar y redactar" ;;
+    vision) echo "entender imágenes" ;;
+    docs)   echo "leer documentos y extraer datos" ;;
+    ocr)    echo "documentos a texto, muy rápido" ;;
+  esac
+}
+
+norm_tag() {  # acepta también los nombres en español: «código», «programar», «documentos»…
+  case "$(echo "$1" | tr '[:upper:]' '[:lower:]' | sed 's/^#//')" in
+    code|coding|codigo|código|programar) echo code ;;
+    agent|agents|agente|agentes|hermes|tools|herramientas) echo agent ;;
+    chat|write|writing|redactar|redaccion|redacción|escribir) echo chat ;;
+    vision|image|images|visión|imagen|imagenes|imágenes) echo vision ;;
+    docs|doc|documents|documento|documentos) echo docs ;;
+    ocr|transcribir) echo ocr ;;
+    *) echo "" ;;
+  esac
+}
+
+installed_id() {
+  case "$1" in
+    ornith) has_ornith ;;
+    embla)  has_embla ;;
+    hermes|9b) has_9b ;;
+    ocr)    has_ocr ;;
+  esac
+}
+
+show_tag() {  # $1 = etiqueta normalizada
+  local id found="" ok extra
+  echo "#$1 — $(tag_desc "$1")"
+  for id in $MODEL_IDS; do
+    case " $(tags_of "$id") " in *" $1 "*) ;; *) continue ;; esac
+    found=1
+    if installed_id "$id"; then ok="✓"; else ok="↓"; fi
+    extra=""
+    if testing_of "$id"; then extra=" (en pruebas)"; fi
+    printf "   %s ia %-7s %s%s\n" "$ok" "$id" "$(name_of "$id")" "$extra"
+  done
+  [[ -n "$found" ]] || echo "   (ningún modelo)"
+}
+
+by_tag() {  # ia tags [tag]
+  local t
+  if [[ -z "${1:-}" ]]; then
+    for t in $ALL_TAGS; do show_tag "$t"; echo; done
+    echo "✓ instalado · ↓ se descarga la primera vez"
+    return 0
+  fi
+  t="$(norm_tag "$1")"
+  if [[ -z "$t" ]]; then
+    echo "No conozco la etiqueta «$1». Opciones: $ALL_TAGS"
+    exit 1
+  fi
+  show_tag "$t"
+}
+
+CUR_ID=""   # modelo que se está lanzando (para mostrar sus etiquetas)
+
+case "${IA_SERVER:-}" in
+  fork) SERVER=("$FORK_SERVER") ;;
+  "")   SERVER=("$LLAMA_BIN" serve) ;;
+  *)    SERVER=("$IA_SERVER") ;;
+esac
 
 # ---------- comprobaciones ----------
 
@@ -58,10 +206,26 @@ in_hf_cache() {  # $1 = patrón
   return 1
 }
 
-has_27b()    { [[ -f "$B27_FILE" ]] || in_hf_cache "$PAT_27B"; }
 has_9b()     { in_hf_cache "$PAT_9B"; }
 has_mimo()   { in_hf_cache "$PAT_MIMO"; }
 has_ocr()    { in_hf_cache "$PAT_OCR"; }
+has_mimo_mtp()      { in_hf_cache "$PAT_MIMO_MTP"; }
+has_dflash_qwen()   { in_hf_cache "$PAT_DFLASH_QWEN"; }
+has_ornith()        { in_hf_cache "$PAT_ORNITH"; }
+has_ornith_dflash() { in_hf_cache "$PAT_ORNITH_DFLASH"; }
+has_qwopus()        { in_hf_cache "$PAT_QWOPUS"; }
+has_embla()         { in_hf_cache "$PAT_EMBLA"; }
+
+old_installed() {
+  case "$1" in
+    mimo)          has_mimo ;;
+    mimo-mtp)      has_mimo_mtp ;;
+    qwopus)        has_qwopus ;;
+    ornith-dflash) has_ornith_dflash ;;
+    dflash-qwen)   has_dflash_qwen ;;
+    *) return 1 ;;
+  esac
+}
 
 mark() {  # $1 = función de comprobación, $2 = tamaño aproximado de descarga
   if "$1"; then echo "✓"; else echo "↓ se descargará (~$2)"; fi
@@ -69,11 +233,23 @@ mark() {  # $1 = función de comprobación, $2 = tamaño aproximado de descarga
 
 list_installed() {
   echo "Modelos:"
-  echo "  mimo    $(mark has_mimo '6,8 GB')"
-  echo "  9b      $(mark has_9b '3,5 GB')"
-  echo "  27b     $(mark has_27b '7,8 GB')"
-  echo "  ocr     $(mark has_ocr '0,9 GB')"
+  echo "  ornith  $(mark has_ornith '6,7 GB')   $(fmt_tags ornith)"
+  echo "  9b      $(mark has_9b '3,5 GB')   $(fmt_tags 9b) · con «ia hermes»: $(fmt_tags hermes)"
+  echo "  ocr     $(mark has_ocr '0,9 GB')   $(fmt_tags ocr)"
   echo
+  echo "En pruebas:"
+  echo "  embla   $(mark has_embla '5,6 GB + compilar el motor')   $(fmt_tags embla)"
+  echo
+  # Descartados en ia-bench (9 nov 2026): solo salen si siguen en disco, para borrarlos con ia rm
+  local old="" id
+  for id in mimo mimo-mtp qwopus ornith-dflash dflash-qwen; do
+    if old_installed "$id"; then old="$old $id"; fi
+  done
+  if [[ -n "$old" ]]; then
+    echo "Descartados que siguen en disco (ia rm <nombre> para borrarlos):"
+    for id in $old; do echo "  $id"; done
+    echo
+  fi
   echo "Espacio ocupado:"
   du -sh "$MODELS"/* "${HF_CACHES[@]}" 2>/dev/null | sort -h | sed 's/^/  /' || true
 }
@@ -81,11 +257,15 @@ list_installed() {
 # ---------- utilidades ----------
 
 stop_all() {
-  if pgrep -f "llama-server" >/dev/null 2>&1; then
-    echo "→ Parando el modelo que estaba en marcha…"
-    pkill -f "llama-server" || true
-    sleep 2
-  fi
+  local p stopped=""
+  for p in "llama-server" "llama serve" "embla serve"; do
+    if pgrep -f "$p" >/dev/null 2>&1; then
+      [[ -n "$stopped" ]] || echo "→ Parando el modelo que estaba en marcha…"
+      pkill -f "$p" || true
+      stopped=1
+    fi
+  done
+  if [[ -n "$stopped" ]]; then sleep 2; fi
 }
 
 check_memory() {
@@ -105,6 +285,7 @@ banner() {
   echo "   Chat:  http://localhost:$PORT"
   echo "   API:   http://localhost:$PORT/v1"
   echo "   Contexto: $CTX tokens · Ctrl+C para parar"
+  if [[ -n "$CUR_ID" ]]; then echo "   Para: $(fmt_tags "$CUR_ID")"; fi
   echo
 }
 
@@ -133,15 +314,20 @@ add_if_exists() {
   done
 }
 
-delete_model() {  # $1 = mimo|9b|27b|ocr
+delete_model() {  # $1 = mimo|9b|ocr
   TARGETS=()
   local label
   case "$1" in
     mimo)   label="MiMo-V2.6 9B";  collect_cache "$PAT_MIMO" ;;
     9b)     label="Bonsai 2 9B";   collect_cache "$PAT_9B" ;;
-    27b)    label="Bonsai 2 27B";  collect_cache "$PAT_27B"; add_if_exists "$B27_DIR" ;;
     ocr)    label="Xiaomi-OCR-0";  collect_cache "$PAT_OCR" ;;
-    *) echo "Uso: ia rm [mimo|9b|27b|ocr]"; exit 1 ;;
+    mimo-mtp)      label="MiMo con MTP (VitreousCut)";      collect_cache "$PAT_MIMO_MTP" ;;
+    dflash-qwen)   label="borrador DFlash de Qwen3.5-9B";   collect_cache "$PAT_DFLASH_QWEN" ;;
+    ornith)        label="Ornith-1.5 9B";                   collect_cache "$PAT_ORNITH" ;;
+    ornith-dflash) label="borrador DFlash de Ornith";       collect_cache "$PAT_ORNITH_DFLASH" ;;
+    qwopus)        label="Qwopus3.5 9B Coder Flash";        collect_cache "$PAT_QWOPUS" ;;
+    embla)         label="Embla 1 (modelo y motor embla-metal)"; collect_cache "$PAT_EMBLA"; add_if_exists "$EMBLA_DIR" ;;
+    *) echo "Uso: ia rm [mimo|mimo-mtp|dflash-qwen|9b|ocr|ornith|ornith-dflash|qwopus]"; exit 1 ;;
   esac
 
   if [[ ${#TARGETS[@]} -eq 0 ]]; then
@@ -165,38 +351,150 @@ delete_menu() {
   echo "¿Qué modelo borro?"
   has_mimo   && echo "  1) MiMo-V2.6 9B"
   has_9b     && echo "  2) Bonsai 2 9B"
-  has_27b    && echo "  3) Bonsai 2 27B"
-  has_ocr    && echo "  4) Xiaomi-OCR-0"
+  has_ocr    && echo "  3) Xiaomi-OCR-0"
+  has_ornith && echo "  4) Ornith-1.5 9B"
+  has_qwopus && echo "  5) Qwopus3.5 9B Coder Flash"
+  has_mimo_mtp && echo "  6) MiMo con MTP"
+  has_ornith_dflash && echo "  7) Borrador DFlash de Ornith"
+  has_dflash_qwen && echo "  8) Borrador DFlash de Qwen3.5-9B"
   echo "  q) Volver"
   read -r -p "> " opt
   case "$opt" in
     1) delete_model mimo ;;
     2) delete_model 9b ;;
-    3) delete_model 27b ;;
-    4) delete_model ocr ;;
+    3) delete_model ocr ;;
+    4) delete_model ornith ;;
+    5) delete_model qwopus ;;
+    6) delete_model mimo-mtp ;;
+    7) delete_model ornith-dflash ;;
+    8) delete_model dflash-qwen ;;
     *) exit 0 ;;
   esac
 }
 
-# ---------- lanzar ----------
+# ---------- decodificación especulativa ----------
 
-run_mimo() {
-  # MiMo-V2.6-Distill-Qwen-9B: Qwen3.5-9B reentrenado por Xiaomi para
-  # programar y agentes. Q4_K_M (5,8 GB) + visión (0,9 GB, se baja sola).
-  # 64K de contexto con caché KV q8_0 (~1 GB) para que valga para Hermes.
-  need "$BREW_SERVER"
-  has_mimo || echo "↓ Primera vez: descargando MiMo-V2.6 9B (~6,8 GB con visión)…"
+SPEC=()
+SPEC_LABEL=""
+
+check_spec() {  # $1 = tipo de --spec-type
+  if ! "${SERVER[@]}" --help 2>&1 | grep -q -- "$1"; then
+    echo "✗ Este servidor no conoce --spec-type $1."
+    echo "  Actualiza llama.cpp (llama update) o prueba con IA_SERVER=fork."
+    exit 1
+  fi
+}
+
+spec_args() {  # $1 = modo (vacío|none|mtp|dflash|ngram), $2 = repo del borrador DFlash, $3 = modos válidos
+  SPEC=(); SPEC_LABEL=""
+  local mode="$1" draft="$2" ok=" $3 "
+  case "$mode" in ""|none) return 0 ;; esac
+  if [[ "$ok" != *" $mode "* ]]; then
+    echo "✗ Modo «${mode}» no disponible para este modelo. Opciones: $3"
+    exit 1
+  fi
+  case "$mode" in
+    mtp)
+      check_spec draft-mtp
+      SPEC=(--spec-type draft-mtp --spec-draft-n-max "${IA_SPEC_N:-2}")
+      SPEC_LABEL="MTP (n=${IA_SPEC_N:-2})" ;;
+    dflash)
+      check_spec draft-dflash
+      SPEC=(-hfd "$draft" --spec-type draft-dflash --spec-draft-n-max "${IA_SPEC_N:-8}")
+      SPEC_LABEL="DFlash (n=${IA_SPEC_N:-8})" ;;
+    ngram)
+      check_spec ngram-mod
+      SPEC=(--spec-type ngram-mod)
+      SPEC_LABEL="ngram-mod" ;;
+  esac
+}
+
+# serve ETIQUETA REPO MODO REPO_BORRADOR MODOS_VÁLIDOS [argumentos extra de llama-server…]
+serve() {
+  local label="$1" repo="$2" mode="$3" draft="$4" modes="$5"; shift 5
+  need "${SERVER[0]}"
   CTX="${IA_CTX:-65536}"
-  local kv="${IA_KV:-q8_0}" extra=()
-  if [[ -n "${IA_NOVISION:-}" ]]; then extra+=(--no-mmproj); fi
+  local kv="${IA_KV:-q8_0}" args=()
+  spec_args "$mode" "$draft" "$modes"
+  # Sin visión si se pide, o en modo especulativo (salvo IA_VISION=1)
+  if [[ -n "${IA_NOVISION:-}" ]] || { [[ -n "$SPEC_LABEL" ]] && [[ -z "${IA_VISION:-}" ]]; }; then
+    args+=(--no-mmproj)
+  fi
+  # Límite de razonamiento: al agotarse, el modelo cierra el bloque de pensar y responde
+  if [[ -n "${IA_THINK:-}" ]]; then
+    if ! "${SERVER[@]}" --help 2>&1 | grep -q -- "--reasoning-budget-message"; then
+      echo "✗ Este servidor no admite un presupuesto de razonamiento en tokens. Actualiza llama.cpp (llama update)."
+      exit 1
+    fi
+    args+=(--reasoning-budget "$IA_THINK")
+    if [[ "$IA_THINK" != "-1" && "$IA_THINK" != "0" ]]; then
+      args+=(--reasoning-budget-message "Ya he pensado suficiente; escribo la respuesta.")
+      label="$label · pensar ≤ $IA_THINK"
+    fi
+  fi
   stop_all; check_memory
-  banner "MiMo-V2.6 9B · programar, agentes e imágenes · caché KV $kv"
-  exec "$BREW_SERVER" -hf "$MIMO_REPO" ${extra[@]+"${extra[@]}"} \
+  if [[ -n "$SPEC_LABEL" ]]; then label="$label · $SPEC_LABEL"; fi
+  banner "$label · caché KV $kv"
+  exec "${SERVER[@]}" -hf "$repo" ${args[@]+"${args[@]}"} ${SPEC[@]+"${SPEC[@]}"} "$@" \
     -c "$CTX" -np 1 --port "$PORT" --jinja \
     -fa on --cache-type-k "$kv" --cache-type-v "$kv"
 }
 
+# ---------- lanzar ----------
+
+run_ornith() {
+  # Ornith-1.5-9B (MIT): Qwen3.5-9B con RL para código y agentes. Q4_K_M (5,8 GB)
+  # + visión (0,9 GB). Trae cabeza MTP y tiene borrador DFlash oficial.
+  # Configuración ganadora en ia-bench (9 nov 2026): MTP + visión + pensar ≤ 2048.
+  #   - MTP: ~1,35× más rápido, ~80 % de aceptación, compatible con la visión.
+  #   - Sin límite piensa 2.500-4.000 tokens y se cortaba; con 2048, código 7/7 en 3 de 3.
+  CUR_ID=ornith
+  local mode="${1:-${IA_SPEC:-mtp}}"
+  if [[ "$mode" == "base" ]]; then mode=none; fi
+  IA_THINK="${IA_THINK:-2048}"
+  if [[ -z "${IA_NOVISION:-}" ]]; then IA_VISION="${IA_VISION:-1}"; fi
+  has_ornith || echo "↓ Primera vez: descargando Ornith-1.5 9B (~6,7 GB con visión)…"
+  if [[ "$mode" == "dflash" ]] && ! has_ornith_dflash; then
+    echo "↓ Primera vez: descargando el borrador DFlash de Ornith (~0,8 GB)…"
+  fi
+  serve "Ornith-1.5 9B" "$ORNITH_REPO" "$mode" \
+    "$ORNITH_DFLASH_REPO" "mtp dflash ngram" "${SAMPLING_CODE[@]}"
+}
+
+run_embla() {
+  # Embla 1 (Sevren, MIT): MoE para móviles, 10B en total (3B son una tabla «engram» que
+  # se lee del disco) y 1B activo por token; entrenado para 4 bits. Sin herramientas ni visión.
+  CUR_ID=embla
+  local bin="$EMBLA_DIR/.build/release/embla"
+  if [[ ! -x "$bin" ]]; then
+    command -v git >/dev/null 2>&1 || { echo "✗ Falta git (xcode-select --install)"; exit 1; }
+    command -v swift >/dev/null 2>&1 || {
+      echo "✗ Falta Swift para compilar el motor de Embla. Instala las Command Line Tools:"
+      echo "    xcode-select --install"
+      exit 1
+    }
+    if [[ ! -d "$EMBLA_DIR/.git" ]]; then
+      echo "↓ Primera vez: clonando embla-metal en ${EMBLA_DIR}…"
+      git clone --quiet "$EMBLA_GIT" "$EMBLA_DIR"
+    fi
+    git -C "$EMBLA_DIR" fetch --quiet origin || true
+    git -C "$EMBLA_DIR" -c advice.detachedHead=false checkout --quiet "$EMBLA_COMMIT"
+    echo "⚙︎ Compilando el motor de Embla (la primera vez tarda un par de minutos)…"
+    (cd "$EMBLA_DIR" && swift build -c release --product embla)
+  fi
+  if ! has_embla; then
+    echo "↓ Primera vez: descargando Embla 1 (~5,6 GB)…"
+    "$bin" download
+  fi
+  # Contexto máximo del modelo (256K): la caché KV de Embla ocupa ~2,6 KB por token (~0,7 GB llena)
+  CTX="${IA_CTX:-262144}"
+  stop_all; check_memory
+  banner "Embla 1 · MoE 10B, 1B activo · solo chat (sin herramientas ni imágenes)"
+  exec "$bin" serve --port "$PORT" --context "$CTX"
+}
+
 run_hermes() {
+  CUR_ID=hermes
   need "$FORK_SERVER"
   has_9b || echo "↓ Primera vez: descargando Bonsai 2 9B (~3,5 GB)…"
   CTX="${IA_CTX:-65536}"   # Hermes exige al menos 64K
@@ -213,6 +511,7 @@ run_hermes() {
 }
 
 run_9b() {
+  CUR_ID=9b
   need "$FORK_SERVER"
   has_9b || echo "↓ Primera vez: descargando Bonsai 2 9B (~3,5 GB)…"
   stop_all; check_memory
@@ -220,27 +519,17 @@ run_9b() {
   exec "$FORK_SERVER" -hf "$B9_REPO" -c "$CTX" -np 1 --port "$PORT"
 }
 
-run_27b() {
-  need "$DEMO/scripts/start_llama_server.sh"
-  has_27b || echo "↓ El 27B no está descargado; el script de Prism lo bajará (~7,8 GB)."
-  stop_all; check_memory
-  banner "Bonsai 2 27B · razonamiento medio"
-  cd "$DEMO"
-  BONSAI_CTX="$CTX" BONSAI_KV4=0 exec ./scripts/start_llama_server.sh \
-    --chat-template-kwargs '{"reasoning_effort":"medium"}' \
-    -np 1 --port "$PORT"
-}
-
 run_ocr() {
   # Xiaomi-OCR-0 (0,8B, Apache 2.0). Q6_K + visión (~0,9 GB).
   # Prompt recomendado: "Extract all information from the main body of the document
   # image and represent it in markdown format…" (ver ia-bench).
-  need "$BREW_SERVER"
+  CUR_ID=ocr
+  need "$LLAMA_BIN"
   has_ocr || echo "↓ Primera vez: descargando Xiaomi-OCR-0 (~0,9 GB)…"
   CTX="${IA_CTX:-16384}"
   stop_all; check_memory
   banner "Xiaomi-OCR-0 · documentos a Markdown"
-  exec "$BREW_SERVER" -hf "$OCR_REPO" -c "$CTX" -np 1 --port "$PORT" -fa on --jinja \
+  exec "$LLAMA_BIN" serve -hf "$OCR_REPO" -c "$CTX" -np 1 --port "$PORT" -fa on --jinja \
     --chat-template-kwargs '{"enable_thinking":false}'
 }
 
@@ -248,20 +537,22 @@ run_ocr() {
 
 menu() {
   echo "¿Qué hago?"
-  echo "  1) MiMo-V2.6 9B  – programar, agentes, imágenes (64K)  $(mark has_mimo '6,8 GB')"
-  echo "  2) Bonsai 2 9B   – Hermes, agente rápido (64K)        $(mark has_9b '3,5 GB')"
-  echo "  3) Bonsai 2 27B  – preguntas difíciles (lento)        $(mark has_27b '7,8 GB')"
-  echo "  4) Xiaomi-OCR    – documentos a texto                 $(mark has_ocr '0,9 GB')"
+  echo "  1) Ornith-1.5 9B   $(mark has_ornith '6,7 GB')   $(fmt_tags ornith)"
+  echo "  2) Bonsai 2 9B     $(mark has_9b '3,5 GB')   $(fmt_tags hermes) (modo Hermes, 64K)"
+  echo "  3) Xiaomi-OCR      $(mark has_ocr '0,9 GB')   $(fmt_tags ocr)"
+  echo "  4) Embla 1         $(mark has_embla '5,6 GB')   $(fmt_tags embla) (en pruebas)"
+  echo "  t) ¿Qué uso para…? (modelos por etiqueta)"
   echo "  l) Ver instalados y espacio ocupado"
   echo "  b) Borrar un modelo"
   echo "  p) Parar el modelo en marcha"
   echo "  q) Salir"
   read -r -p "> " opt
   case "$opt" in
-    1) run_mimo ;;
+    1) run_ornith ;;
     2) run_hermes ;;
-    3) run_27b ;;
-    4) run_ocr ;;
+    3) run_ocr ;;
+    4) run_embla ;;
+    t|T) by_tag ;;
     l|L) list_installed ;;
     b|B) delete_menu ;;
     p|P) stop_all; echo "Listo." ;;
@@ -270,14 +561,16 @@ menu() {
 }
 
 case "${1:-}" in
-  mimo)          run_mimo ;;
+  ornith)        run_ornith "${2:-}" ;;
+  embla)         run_embla ;;
+  mimo|qwopus)   echo "«$1» se descartó en ia-bench (9 nov 2026); usa «ia ornith». Para borrarlo: ia rm $1"; exit 1 ;;
   hermes|agent)  run_hermes ;;
   9b)            run_9b ;;
-  27b)           run_27b ;;
   ocr|ocrx)      run_ocr ;;
+  tags|tag|for)  by_tag "${2:-}" ;;
   list)          list_installed ;;
   rm)            delete_model "${2:-}" ;;
   stop)          stop_all; echo "Listo." ;;
   "")            menu ;;
-  *)             echo "Uso: ia [mimo|hermes|9b|27b|ocr|list|rm <modelo>|stop]"; exit 1 ;;
+  *)             echo "Uso: ia [ornith [base|dflash|ngram]|hermes|9b|ocr|tags [tag]|list|rm <modelo>|stop]"; exit 1 ;;
 esac
