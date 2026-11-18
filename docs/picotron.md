@@ -20,6 +20,7 @@ On Arch/Omarchy use the AUR package instead: `yay -S picotron`.
 `run_after_picotron-config.sh` appends missing `mount` lines to `picotron_config.txt`
 (macOS: `~/Library/Application Support/Picotron/`, Linux: `~/.lexaloffle/Picotron/`).
 Picotron rewrites that file itself, so it isn't tracked as a whole.
+The script renders empty while the lines are there, so it only shows up in `chezmoi diff` when something is missing.
 
 ## Carts I like
 

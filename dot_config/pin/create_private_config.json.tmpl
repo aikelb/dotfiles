@@ -1,0 +1,10 @@
+{{- /* The token lives in gopass (dot/pin-token); without gopass the file isn't created.
+     create_: chezmoi only writes it when it's missing, so gopass isn't asked on every
+     diff/apply. To refresh it (new token or server): delete ~/.config/pin/config.json
+     and run chezmoi apply. */ -}}
+{{- if lookPath "gopass" -}}
+{
+  "remote": "http://10.48.237.1:4321",
+  "token": "{{ gopass "dot/pin-token" }}"
+}
+{{ end -}}

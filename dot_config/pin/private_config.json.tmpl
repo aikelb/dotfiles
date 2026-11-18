@@ -1,7 +1,0 @@
-{{- /* El token vive en gopass (dot/pin-token). Sin gopass no se crea el fichero. */ -}}
-{{- if lookPath "gopass" -}}
-{
-  "remote": "http://10.48.237.1:4321",
-  "token": "{{ gopass "dot/pin-token" }}"
-}
-{{ end -}}

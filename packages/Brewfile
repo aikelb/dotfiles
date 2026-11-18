@@ -1,102 +1,75 @@
-tap "anomalyco/tap"
+# macOS packages: `brew bundle --file=packages/Brewfile` (chezmoi lo ejecuta solo cuando este fichero cambia).
+# Regenerar desde lo instalado: brew bundle dump --file=packages/Brewfile --force  (y volver a agrupar)
+# Última revisión: 11 nov 2026
+
 tap "stablyai/orca", trusted: { casks: ["orca"] }
-# Resource monitor. C++ version and continuation of bashtop and bpytop
-brew "btop"
-# Manage your dotfiles across multiple diverse machines, securely
+
+# ── Shell y terminal ─────────────────────────────────────────
 brew "chezmoi"
-# Console Matrix
-brew "cmatrix"
-# Container runtimes on MacOS (and Linux) with minimal setup
-brew "colima", restart_service: :changed
-# Pack, ship and run any application as a lightweight container
-brew "docker"
-# Isolated development environments using Docker
-brew "docker-compose"
-# Platform keystore credential helper for Docker
-brew "docker-credential-helper"
-# Simple, fast and user-friendly alternative to find
-brew "fd"
-# Play, record, convert, and stream select audio and video codecs
-brew "ffmpeg"
-# Command-line fuzzy finder written in Go
-brew "fzf"
-# GitHub command-line tool
-brew "gh"
-# Quickly rewrite git repository history
-brew "git-filter-repo"
-# Open source programming language to build simple/reliable/efficient software
-brew "go"
-# Task is a task runner/build tool that aims to be simpler and easier to use
-brew "go-task"
-# Slightly more awesome Standard Unix Password Manager for Teams
-brew "gopass"
-# Agent multiplexer that lives in your terminal
-brew "herdr"
-# Modular IRC client
-brew "irssi"
-# Lazier way to manage everything docker
-brew "lazydocker"
-# Simple terminal UI for git commands
-brew "lazygit"
-# Terminal file manager
-brew "lf"
-# LLM inference in C/C++
-brew "llama.cpp"
-# Package manager for the Lua programming language
-brew "luarocks"
-# NCurses Disk Usage
-brew "ncdu"
-# Ambitious Vim-fork focused on extensibility and agility
-brew "neovim"
-# Open-source, cross-platform JavaScript runtime environment
-brew "node"
-# Search tool like grep and The Silver Searcher
-brew "ripgrep"
-# AI coding agent, built for the terminal
-brew "opencode"
-# Framework for layout and rendering of i18n text
-brew "pango"
-# Fast, disk space efficient package manager
-brew "pnpm"
-# Interpreted, interactive, object-oriented programming language
-brew "python@3.12"
-# Interpreted, interactive, object-oriented programming language
-brew "python@3.14"
-# Interpreted, interactive, object-oriented programming language
-brew "python@3.15"
-# QR Code generation
-brew "qrencode"
-# Ruby version manager
-brew "rbenv"
-# Create beautiful image of your source code
-brew "silicon"
-# Cross-shell prompt for astronauts
 brew "starship"
-# Display directories as trees (with optional color/HTML output)
-brew "tree"
-# Extremely fast Python package installer and resolver, written in Rust
-brew "uv"
-# Internet file retriever
-brew "wget"
-# Generate your Xcode project from a spec file and your folder structure
-brew "xcodegen"
-# Feature-rich command-line audio/video downloader
-brew "yt-dlp"
-# Shell extension to navigate your filesystem faster
 brew "zoxide"
-# OpenAI's coding agent that runs in your terminal
-cask "codex"
-cask "font-fira-code-nerd-font"
-cask "font-hack-nerd-font"
-# Terminal emulator that uses platform-native UI and GPU acceleration
+brew "fzf"
+brew "fd"
+brew "ripgrep"
+brew "tree"
+brew "lf"
+brew "ncdu"
+brew "btop"
+brew "wget"
+brew "qrencode"
+brew "cmatrix"
 cask "ghostty"
-# 2D and 3D game engine
-cask "godot"
-# Open-source cross-platform alternative to AirDrop
-cask "localsend"
-# Neovim Client
+
+# ── Git y secretos ───────────────────────────────────────────
+brew "gh"
+brew "lazygit"
+brew "git-filter-repo"
+brew "gopass"
+
+# ── Editores ─────────────────────────────────────────────────
+brew "neovim"
+brew "luarocks"          # plugins de LazyVim
 cask "neovide-app"
-# Replacement for Docker Desktop
+
+# ── Lenguajes y herramientas de build ────────────────────────
+brew "go"
+brew "go-task"           # Taskfiles de ops, home-deals-tracker, recipes
+brew "node"
+brew "pnpm"
+brew "uv"
+brew "python@3.12"       # ¿siguen haciendo falta tres versiones de Python?
+brew "python@3.14"
+brew "python@3.15"
+brew "rbenv"
+brew "xcodegen"
+brew "silicon"
+brew "pango"
+
+# ── Contenedores ─────────────────────────────────────────────
+# OrbStack y colima hacen lo mismo: conviene quedarse con uno.
 cask "orbstack"
+brew "colima", restart_service: :changed
+brew "docker"
+brew "docker-compose"
+brew "docker-credential-helper"
+brew "lazydocker"
+
+# ── IA y agentes ─────────────────────────────────────────────
+brew "herdr"             # multiplexor de agentes (+ plugin Ovis: herdr plugin install devswha.ovis)
+cask "codex"
+brew "llama.cpp"         # modelos locales (script ia)
 uv "huggingface-hub"
 npm "reasonix"
+
+# ── Multimedia ───────────────────────────────────────────────
+brew "ffmpeg"
+brew "yt-dlp"
+
+# ── Apps ─────────────────────────────────────────────────────
+cask "godot"
+cask "localsend"
+brew "irssi"             # ¿sigue en uso ahora que tienes Halloy?
+
+# ── Fuentes ──────────────────────────────────────────────────
+cask "font-fira-code-nerd-font"
+cask "font-hack-nerd-font"

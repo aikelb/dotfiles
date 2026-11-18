@@ -1,7 +1,4 @@
-# Shared shell setup, sourced by zsh (macOS) and bash (Omarchy).
-
-export EDITOR=nvim
-case ":$PATH:" in *":$HOME/.local/bin:"*) ;; *) export PATH="$HOME/.local/bin:$PATH" ;; esac
+# Shared aliases, sourced by zsh (macOS) and bash (Omarchy). Variables and PATH go in env.sh.
 
 alias vim='nvim'
 alias v='nvim'

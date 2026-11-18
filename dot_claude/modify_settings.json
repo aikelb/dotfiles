@@ -1,0 +1,25 @@
+#!/usr/bin/env python3
+# chezmoi modify script for ~/.claude/settings.json.
+# Claude Code keeps its own state in this file, so we don't own it: we only make
+# sure herdr's SessionStart hook is registered and leave every other key alone.
+# Existing herdr entries are replaced, so running it again changes nothing.
+import json
+import os
+import sys
+
+HOOK = os.path.expanduser("~/.claude/hooks/herdr-agent-state.sh")
+MARKER = "herdr-agent-state.sh"
+
+raw = sys.stdin.read()
+settings = json.loads(raw) if raw.strip() else {}
+
+hooks = settings.setdefault("hooks", {})
+groups = [
+    g for g in hooks.get("SessionStart", [])
+    if not any(MARKER in h.get("command", "") for h in g.get("hooks", []))
+]
+groups.append({"hooks": [{"type": "command", "command": f"sh '{HOOK}' session", "timeout": 10}]})
+hooks["SessionStart"] = groups
+
+json.dump(settings, sys.stdout, indent=2, ensure_ascii=False)
+sys.stdout.write("\n")

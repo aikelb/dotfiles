@@ -1,15 +1,18 @@
+{{- /* Make sure Picotron mounts personal folders. Picotron rewrites its own config,
+     so the script only appends missing lines. It renders empty (chezmoi skips it,
+     and `chezmoi diff` doesn't show it) unless Picotron is set up, ~/git/shmup
+     exists and the mount line is missing. */ -}}
+{{- $cfg := joinPath .chezmoi.homeDir "Library/Application Support/Picotron/picotron_config.txt" -}}
+{{- if ne .chezmoi.os "darwin" -}}
+{{-   $cfg = joinPath .chezmoi.homeDir ".lexaloffle/Picotron/picotron_config.txt" -}}
+{{- end -}}
+{{- $shmup := joinPath .chezmoi.homeDir "git/shmup" -}}
+{{- $line := printf "mount /shmup %s" $shmup -}}
+{{- if and (stat $cfg) (stat $shmup) -}}
+{{-   if not (contains $line (include $cfg)) -}}
 #!/bin/bash
-# Make sure Picotron mounts personal folders. Picotron rewrites its own config,
-# so only missing lines are appended. Safe to run on every apply.
-{{ if eq .chezmoi.os "darwin" -}}
-cfg="$HOME/Library/Application Support/Picotron/picotron_config.txt"
-{{- else -}}
-cfg="$HOME/.lexaloffle/Picotron/picotron_config.txt"
-{{- end }}
-
-[ -f "$cfg" ] || exit 0   # Picotron not installed or never opened yet
-
-add() { grep -qxF "$1" "$cfg" || { printf '%s\n' "$1" >> "$cfg"; echo "picotron: added '$1'"; }; }
-
-[ -d "$HOME/git/shmup" ] && add "mount /shmup $HOME/git/shmup"
-exit 0
+cfg={{ $cfg | quote }}
+line={{ $line | quote }}
+grep -qxF "$line" "$cfg" || { printf '%s\n' "$line" >> "$cfg"; echo "picotron: added '$line'"; }
+{{    end -}}
+{{- end -}}

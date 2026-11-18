@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# ovis-pair — muestra el código de 6 dígitos para emparejar un dispositivo nuevo con Ovis (plugin de herdr).
+# Hazlo con el dispositivo delante y no lo pegues en ningún log.
+set -euo pipefail
+root=$(herdr plugin list --json | bun -e 'const d = JSON.parse(await Bun.stdin.text()); console.log(d.result.plugins.find((p) => p.plugin_id === "devswha.ovis")?.plugin_root ?? "")')
+[ -n "$root" ] || { echo "Ovis no está instalado: herdr plugin install devswha.ovis" >&2; exit 1; }
+exec bun "$root/scripts/plugin.ts" pair

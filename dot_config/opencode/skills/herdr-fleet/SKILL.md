@@ -2,7 +2,7 @@
 name: Herdr Fleet
 description: >
   Dispatch and verify work on herdr-managed agents (OpenCode workers on the
-  DeepSeek API by default, free GLM tier as fallback). Use when the user asks to offload, dispatch,
+  Command Code subscription, zero data retention on every request). Use when the user asks to offload, dispatch,
   fan out, or orchestrate tasks across OpenCode/codex/Claude panes, or asks
   about the herd. Enforces: fleet workers get no disk access except exact,
   non-sensitive paths the orchestrator grants; secret/credential paths are
@@ -63,8 +63,9 @@ description: >
 
 | Task | Tier |
 |---|---|
-| Non-sensitive mechanics, code, docs, research | **Default: DeepSeek paid API** (`deepseek/deepseek-v4-pro`, set as `model` in `~/.config/opencode/opencode.jsonc`) |
-| Fallback when DeepSeek is unavailable | `opencode/glm-5.3-flash-free`. Pre-authorized by the user: if a worker shows a DeepSeek auth/credit/rate-limit/outage error, Claude may switch that worker to this model (`/models` in the pane, or start it with `-m opencode/glm-5.3-flash-free`) and must tell the user it did so. Any other model switch still follows the Dialog gate. |
+| Non-sensitive mechanics, code, docs, research | **Default: Command Code** (`commandcode/zai-org/GLM-5.3`, set as `model` in `~/.config/opencode/opencode.jsonc`). Every request carries `x-cmd-zdr: 1` |
+| Hard task the user asked to give to a stronger worker | `commandcode/moonshotai/Kimi-K3.1-Pro` |
+| Worker runs out of a model's allowance | Pre-authorized by the user: Claude may switch that worker to another `commandcode/` model, in this order: `deepseek/deepseek-v4.1-flash` → `z-ai/glm-5.3-flash` → `inclusionai/ling-3.1-flash` → `MiniMaxAI/MiniMax-M3` (`/models` in the pane; opencode v2.3+ has no `-m` flag), and must tell the user it did so. If the 5-hour or weekly window is hit, the whole plan is paused: stop and report the reset time (local/ornith only if the user says so). Never buy credits, turn on auto reload or remove the ZDR header. A `422 cmd_zdr_no_providers` means that model has no ZDR route: pick another, don't work around it. Any other model switch still follows the Dialog gate. |
 | Privacy-critical, no external egress | local/ornith — only if the `ia` llama-server is up on port 8080; verify before use |
 | codex / ChatGPT Go | Only on explicit user request; stop on usage-limit screens |
 | Claude | Never dispatch from this skill. Claude panes belong to the user |
@@ -83,10 +84,28 @@ herdr agent start <kebab-name> --kind opencode --pane <pane-id> --timeout 45000
 If startup times out: wait 15s, read the pane once (`herdr pane read <pane>
 --source visible`), retry the start ONCE. Two failures → report and stop.
 
+Notes (opencode v2.3.0):
+- `opencode` lives in `~/.opencode/bin` (on PATH via `~/.config/shell/env.sh`,
+  sourced by `~/.zshrc`). A pane opened before that needs
+  `herdr pane run <pane> "source ~/.zshrc"`.
+- There is no `-m` flag: start plain (opens on the default tier), then pick the
+  model with `herdr pane send-text <pane> "/models"` + `herdr agent send-keys
+  <name> enter`, type the model name, `enter`, and `enter` again for the
+  `Default` variant. Check the status line shows it before dispatching.
+- For read-only work (reviews, research) switch to the **Plan** agent
+  (`herdr agent send-keys <name> shift+tab`): it cannot edit files. Plan keeps
+  its own model setting, so pick the model again after switching.
+- Worker tool calls are in `~/.local/share/opencode/opencode.db`
+  (`session_message`, parts with `"type":"tool"`); audit them read-only
+  with `sqlite3 -readonly` against the grant.
+
 ### 2. Dispatch
 ```
 herdr agent prompt <name> "<single, concrete task + path allowlist>" --wait --timeout 120000
 ```
+`--timeout` requires `--wait`; without `--wait`, omit it (the call returns at
+once). For long tasks, prompt without `--wait` and run
+`herdr agent wait <name> --timeout <ms>` in the background.
 Every prompt that involves files must end with the allowlist from rule 2.
 No allowlist → the worker gets a pure text task (no file access).
 
@@ -96,8 +115,8 @@ herdr agent wait <name> --timeout 60000
 herdr agent read <name> --source recent-unwrapped --lines 120
 ```
 On `agent_not_idle` → wait and retry once, then fall back to `--source visible`.
-Verify: (a) the status line shows the expected tier (`deepseek-v4-pro`, or
-the GLM fallback if it was switched), (b) the answer actually addresses the
+Verify: (a) the status line shows the expected tier (`glm-5.3`, or the
+model it was switched to), (b) the answer actually addresses the
 task — read the code/diff yourself; worker summaries have claimed work that
 was never done. Report what you saw, quoting the agent.
 

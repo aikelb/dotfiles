@@ -1,5 +1,6 @@
 export PATH="/usr/local/sbin:$PATH"
 
+[ -f "$HOME/.config/shell/env.sh" ] && source "$HOME/.config/shell/env.sh"
 [ -f "$HOME/.config/shell/aliases.sh" ] && source "$HOME/.config/shell/aliases.sh"
 
 eval "$(starship init zsh)"
