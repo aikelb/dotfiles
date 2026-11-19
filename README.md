@@ -35,7 +35,7 @@ llama.cpp (used by `ia`, macOS on Apple Silicon) isn't either: install it with t
 | `dot_gitconfig.tmpl` | Git identity and settings |
 | `dot_config/herdr`, `dot_config/opencode` | herdr + OpenCode: config, plugin y hooks de estado, skill `herdr-fleet`. Plugin Ovis: `herdr plugin install devswha.ovis` |
 | `private_dot_codex` | Codex: config y hook de estado para herdr (macOS) |
-| `dot_config/pin/create_private_config.json.tmpl` | Cliente de pin; el token sale de gopass (`dot/pin-token`). Solo se crea si falta: para regenerarlo, borra `~/.config/pin/config.json` y `chezmoi apply` |
+| `dot_config/pin/create_private_config.json.tmpl` | Cliente de pin; el token sale de gopass (`ops/dot/pin-token`). Solo se crea si falta: para regenerarlo, borra `~/.config/pin/config.json` y `chezmoi apply` |
 | `dot_local/bin` | macOS scripts: `ia` + `ia-bench` (local models), `picotron-update`, `xcode-clear`. Both OSes: `ovis-pair` |
 | `docs/` | Notes, e.g. [Picotron setup and carts](docs/picotron.md) |
 | `content/` | Wallpapers (kept in the repo, not deployed) |
