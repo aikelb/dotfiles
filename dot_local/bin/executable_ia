@@ -15,13 +15,19 @@
 #                     (su motor no admite herramientas ni imágenes). La primera vez clona y
 #                     compila embla-metal en ~/models/embla-metal (necesita Xcode o las
 #                     Command Line Tools) y descarga el modelo (5,6 GB).
+#   ia voice        → Chatterbox (MIT): voz (texto a voz) clonando ~/models/voices/ibai.wav.
+#                     Va en otro puerto (8090), así que puede convivir con un modelo de texto.
+#                     (alias: ia voz) · ia voice stop → parar solo la voz
+#   ia say "texto"  → leer un texto en voz alta (también: pbpaste | ia say). Arranca la voz
+#                     en segundo plano si no está en marcha.
 #   ia tags         → qué modelo usar para cada cosa (etiquetas)
 #   ia tags code    → solo los modelos con esa etiqueta
-#                     (code · agent · chat · vision · docs · ocr)
+#                     (code · agent · chat · vision · docs · ocr · voice)
 #   ia list         → ver qué está instalado y cuánto ocupa
 #   ia rm <modelo>  → borrar un modelo o borrador, pide confirmación
-#                     (ornith|9b|ocr, y los descartados: mimo|mimo-mtp|qwopus|ornith-dflash|dflash-qwen)
-#   ia stop         → parar el modelo que esté corriendo
+#                     (ornith|9b|ocr|voice, y los descartados: mimo|mimo-mtp|qwopus|ornith-dflash|
+#                     dflash-qwen|lfm3-audio|qwen3-tts)
+#   ia stop         → parar todo lo que esté corriendo (también la voz)
 #
 # Decodificación especulativa de Ornith, como segundo argumento:
 #   ia ornith         → MTP (su propia cabeza, no descarga nada más). Es lo normal.
@@ -40,6 +46,8 @@
 #   IA_THINK=4096 ia ornith → límite de tokens pensando (Ornith: 2048 por defecto; -1 = sin límite)
 #   IA_SERVER=fork ia …    → usar el llama-server del fork de Prism en vez de «llama serve»
 #   IA_YES=1 ia …          → no preguntar nada (lo usa ia-bench)
+#   IA_VOICE_PORT=8091     → puerto de la voz (por defecto 8090)
+#   IA_VOICE_REF=~/x.wav   → voz de referencia para clonar (por defecto ~/models/voices/ibai.wav)
 
 set -euo pipefail
 
@@ -73,6 +81,17 @@ ORNITH_DFLASH_REPO="abenzerps/Ornith-1.5-9B-DFlash-GGUF:Q4_K_M"
 PAT_QWOPUS="Qwopus3-5-9B-Coder-Flash"
 QWOPUS_REPO="Jackrong/Qwopus3-5-9B-Coder-Flash-GGUF:Q4_K_M"            # Apache 2.0, trae MTP
 
+# Voice (text to speech). Chatterbox Multilingual V3 won the tts-test on 19 nov 2026.
+PAT_VOICE="chatterbox-GGUF"
+VOICE_REPO="ggml-org/chatterbox-GGUF:Q8_0"                              # MIT, 23 languages, voice cloning
+VOICE_PORT="${IA_VOICE_PORT:-8090}"
+VOICE_REF="${IA_VOICE_REF:-$MODELS/voices/ibai.wav}"
+VOICE_LOG="$MODELS/voices/server.log"
+VOICE_MARK="chatterbox-GGUF"   # how the voice server is told apart from the text models in `ps`
+# Discarded in the tts-test (19 nov 2026); only listed so `ia rm` can delete them
+PAT_LFM3A="LFM3-Audio-2B-GGUF"
+PAT_QWEN3TTS="Qwen3-TTS-12Hz-1.7B-Base-GGUF"
+
 # Embla 1 (Sevren, MIT): no va con llama.cpp, usa su propio motor Metal (embla-metal, MIT).
 # El motor se clona y se compila con Swift la primera vez; el modelo (5,6 GB) va a la caché de HF.
 PAT_EMBLA="sevren-ai--Embla1-4bit"
@@ -91,8 +110,9 @@ SAMPLING_CODE=(--temp 0.6 --top-p 0.95 --top-k 20 --min-p 0)
 #   vision  entender imágenes
 #   docs    leer documentos y extraer datos
 #   ocr     pasar documentos a texto, muy rápido
-ALL_TAGS="code agent chat vision docs ocr"
-MODEL_IDS="ornith hermes 9b ocr embla"
+#   voice   leer textos en voz alta (texto a voz)
+ALL_TAGS="code agent chat vision docs ocr voice"
+MODEL_IDS="ornith hermes 9b ocr embla voice"
 
 tags_of() {
   case "$1" in
@@ -101,6 +121,7 @@ tags_of() {
     9b)     echo "chat" ;;
     ocr)    echo "ocr docs" ;;
     embla)  echo "chat" ;;   # su servidor no admite herramientas ni imágenes
+    voice)  echo "voice" ;;
   esac
 }
 
@@ -111,6 +132,7 @@ name_of() {
     9b)     echo "Bonsai 2 9B · 16K" ;;
     ocr)    echo "Xiaomi-OCR-0" ;;
     embla)  echo "Embla 1 · MoE 10B, 1B activo, 256K" ;;
+    voice)  echo "Chatterbox · voz clonada, puerto $VOICE_PORT" ;;
   esac
 }
 
@@ -132,6 +154,7 @@ tag_desc() {
     vision) echo "entender imágenes" ;;
     docs)   echo "leer documentos y extraer datos" ;;
     ocr)    echo "documentos a texto, muy rápido" ;;
+    voice)  echo "leer textos en voz alta" ;;
   esac
 }
 
@@ -143,6 +166,7 @@ norm_tag() {  # acepta también los nombres en español: «código», «programa
     vision|image|images|visión|imagen|imagenes|imágenes) echo vision ;;
     docs|doc|documents|documento|documentos) echo docs ;;
     ocr|transcribir) echo ocr ;;
+    voice|voz|tts|speech|say|hablar|leer) echo voice ;;
     *) echo "" ;;
   esac
 }
@@ -153,6 +177,7 @@ installed_id() {
     embla)  has_embla ;;
     hermes|9b) has_9b ;;
     ocr)    has_ocr ;;
+    voice)  has_voice ;;
   esac
 }
 
@@ -215,6 +240,9 @@ has_ornith()        { in_hf_cache "$PAT_ORNITH"; }
 has_ornith_dflash() { in_hf_cache "$PAT_ORNITH_DFLASH"; }
 has_qwopus()        { in_hf_cache "$PAT_QWOPUS"; }
 has_embla()         { in_hf_cache "$PAT_EMBLA"; }
+has_voice()         { in_hf_cache "$PAT_VOICE"; }
+has_lfm3a()         { in_hf_cache "$PAT_LFM3A"; }
+has_qwen3tts()      { in_hf_cache "$PAT_QWEN3TTS"; }
 
 old_installed() {
   case "$1" in
@@ -223,6 +251,8 @@ old_installed() {
     qwopus)        has_qwopus ;;
     ornith-dflash) has_ornith_dflash ;;
     dflash-qwen)   has_dflash_qwen ;;
+    lfm3-audio)    has_lfm3a ;;
+    qwen3-tts)     has_qwen3tts ;;
     *) return 1 ;;
   esac
 }
@@ -236,13 +266,14 @@ list_installed() {
   echo "  ornith  $(mark has_ornith '6,7 GB')   $(fmt_tags ornith)"
   echo "  9b      $(mark has_9b '3,5 GB')   $(fmt_tags 9b) · con «ia hermes»: $(fmt_tags hermes)"
   echo "  ocr     $(mark has_ocr '0,9 GB')   $(fmt_tags ocr)"
+  echo "  voice   $(mark has_voice '1,2 GB')   $(fmt_tags voice) · referencia: $VOICE_REF"
   echo
   echo "En pruebas:"
   echo "  embla   $(mark has_embla '5,6 GB + compilar el motor')   $(fmt_tags embla)"
   echo
   # Descartados en ia-bench (9 nov 2026): solo salen si siguen en disco, para borrarlos con ia rm
   local old="" id
-  for id in mimo mimo-mtp qwopus ornith-dflash dflash-qwen; do
+  for id in mimo mimo-mtp qwopus ornith-dflash dflash-qwen lfm3-audio qwen3-tts; do
     if old_installed "$id"; then old="$old $id"; fi
   done
   if [[ -n "$old" ]]; then
@@ -256,17 +287,36 @@ list_installed() {
 
 # ---------- utilidades ----------
 
-stop_all() {
-  local p stopped=""
+server_pids() {  # $1 = all|text|voice; prints the PIDs of running model servers
+  local which="$1" p pid cmd
   for p in "llama-server" "llama serve" "embla serve"; do
-    if pgrep -f "$p" >/dev/null 2>&1; then
-      [[ -n "$stopped" ]] || echo "→ Parando el modelo que estaba en marcha…"
-      pkill -f "$p" || true
-      stopped=1
-    fi
-  done
-  if [[ -n "$stopped" ]]; then sleep 2; fi
+    for pid in $(pgrep -f "$p" 2>/dev/null || true); do
+      cmd="$(ps -o command= -p "$pid" 2>/dev/null || true)"
+      [[ -n "$cmd" ]] || continue
+      case "$which:$cmd" in
+        all:*) ;;
+        voice:*"$VOICE_MARK"*) ;;
+        voice:*) continue ;;
+        text:*"$VOICE_MARK"*) continue ;;
+      esac
+      echo "$pid"
+    done
+  done | sort -u
 }
+
+stop_servers() {  # $1 = all|text|voice, $2 = message
+  local pids
+  pids="$(server_pids "$1")"
+  [[ -n "$pids" ]] || return 0
+  echo "→ $2"
+  # shellcheck disable=SC2086
+  kill $pids 2>/dev/null || true
+  sleep 2
+}
+
+stop_all()   { stop_servers all   "Parando lo que estaba en marcha…"; }
+stop_text()  { stop_servers text  "Parando el modelo que estaba en marcha…"; }   # leaves the voice running
+stop_voice() { stop_servers voice "Parando la voz…"; }
 
 check_memory() {
   if pgrep -fi "mlx ?studio|vmlx" >/dev/null 2>&1; then
@@ -327,7 +377,10 @@ delete_model() {  # $1 = mimo|9b|ocr
     ornith-dflash) label="borrador DFlash de Ornith";       collect_cache "$PAT_ORNITH_DFLASH" ;;
     qwopus)        label="Qwopus3.5 9B Coder Flash";        collect_cache "$PAT_QWOPUS" ;;
     embla)         label="Embla 1 (modelo y motor embla-metal)"; collect_cache "$PAT_EMBLA"; add_if_exists "$EMBLA_DIR" ;;
-    *) echo "Uso: ia rm [mimo|mimo-mtp|dflash-qwen|9b|ocr|ornith|ornith-dflash|qwopus]"; exit 1 ;;
+    voice|voz)     label="Chatterbox (voz; la referencia de ~/models/voices se conserva)"; collect_cache "$PAT_VOICE" ;;
+    lfm3-audio)    label="LFM3-Audio 2B (voz descartada)";   collect_cache "$PAT_LFM3A" ;;
+    qwen3-tts)     label="Qwen3-TTS 1.7B (voz descartada)";  collect_cache "$PAT_QWEN3TTS" ;;
+    *) echo "Uso: ia rm [mimo|mimo-mtp|dflash-qwen|9b|ocr|ornith|ornith-dflash|qwopus|voice|lfm3-audio|qwen3-tts]"; exit 1 ;;
   esac
 
   if [[ ${#TARGETS[@]} -eq 0 ]]; then
@@ -357,6 +410,9 @@ delete_menu() {
   has_mimo_mtp && echo "  6) MiMo con MTP"
   has_ornith_dflash && echo "  7) Borrador DFlash de Ornith"
   has_dflash_qwen && echo "  8) Borrador DFlash de Qwen3.5-9B"
+  has_voice && echo "  9) Chatterbox (voz)"
+  has_lfm3a && echo "  10) LFM3-Audio 2B (voz descartada)"
+  has_qwen3tts && echo "  11) Qwen3-TTS 1.7B (voz descartada)"
   echo "  q) Volver"
   read -r -p "> " opt
   case "$opt" in
@@ -368,6 +424,9 @@ delete_menu() {
     6) delete_model mimo-mtp ;;
     7) delete_model ornith-dflash ;;
     8) delete_model dflash-qwen ;;
+    9) delete_model voice ;;
+    10) delete_model lfm3-audio ;;
+    11) delete_model qwen3-tts ;;
     *) exit 0 ;;
   esac
 }
@@ -432,7 +491,7 @@ serve() {
       label="$label · pensar ≤ $IA_THINK"
     fi
   fi
-  stop_all; check_memory
+  stop_text; check_memory
   if [[ -n "$SPEC_LABEL" ]]; then label="$label · $SPEC_LABEL"; fi
   banner "$label · caché KV $kv"
   exec "${SERVER[@]}" -hf "$repo" ${args[@]+"${args[@]}"} ${SPEC[@]+"${SPEC[@]}"} "$@" \
@@ -488,7 +547,7 @@ run_embla() {
   fi
   # Contexto máximo del modelo (256K): la caché KV de Embla ocupa ~2,6 KB por token (~0,7 GB llena)
   CTX="${IA_CTX:-262144}"
-  stop_all; check_memory
+  stop_text; check_memory
   banner "Embla 1 · MoE 10B, 1B activo · solo chat (sin herramientas ni imágenes)"
   exec "$bin" serve --port "$PORT" --context "$CTX"
 }
@@ -502,7 +561,7 @@ run_hermes() {
   if (( CTX < 64000 )); then
     echo "⚠️  Contexto $CTX: Hermes pide al menos 64000 y no arrancará."
   fi
-  stop_all; check_memory
+  stop_text; check_memory
   banner "Bonsai 2 9B · modo agente (Hermes) · caché KV $kv"
   exec "$FORK_SERVER" -hf "$B9_REPO" \
     -c "$CTX" -np 1 --port "$PORT" \
@@ -514,7 +573,7 @@ run_9b() {
   CUR_ID=9b
   need "$FORK_SERVER"
   has_9b || echo "↓ Primera vez: descargando Bonsai 2 9B (~3,5 GB)…"
-  stop_all; check_memory
+  stop_text; check_memory
   banner "Bonsai 2 9B"
   exec "$FORK_SERVER" -hf "$B9_REPO" -c "$CTX" -np 1 --port "$PORT"
 }
@@ -527,10 +586,114 @@ run_ocr() {
   need "$LLAMA_BIN"
   has_ocr || echo "↓ Primera vez: descargando Xiaomi-OCR-0 (~0,9 GB)…"
   CTX="${IA_CTX:-16384}"
-  stop_all; check_memory
+  stop_text; check_memory
   banner "Xiaomi-OCR-0 · documentos a Markdown"
   exec "$LLAMA_BIN" serve -hf "$OCR_REPO" -c "$CTX" -np 1 --port "$PORT" -fa on --jinja \
     --chat-template-kwargs '{"enable_thinking":false}'
+}
+
+# ---------- voice (text to speech) ----------
+
+voice_up() { curl -sf "http://127.0.0.1:$VOICE_PORT/health" >/dev/null 2>&1; }
+
+run_voice() {
+  # Chatterbox Multilingual V3 (MIT): Q8_0 (0,6 GB) + codec/voice encoder (0,6 GB), ~2,4 GB in use.
+  # tts-test (19 nov 2026): ~real time (RTF 1,1) cloning the reference voice; the best-sounding one.
+  # It has its own port so it can run next to a text model. Note: llama serve does not do the
+  # classifier-free guidance of the multilingual model yet (llama tts does); it already sounds good.
+  CUR_ID=voice
+  need "$LLAMA_BIN"
+  has_voice || echo "↓ Primera vez: descargando Chatterbox (~1,2 GB)…"
+  if [[ ! -f "$VOICE_REF" ]]; then
+    echo "⚠️  No encuentro la voz de referencia $VOICE_REF: «ia say» usará la voz propia del modelo."
+  fi
+  stop_voice; check_memory
+  echo
+  echo "=== Chatterbox · voz (texto a voz) ==="
+  echo "   API:   http://localhost:$VOICE_PORT/tts y /v1/audio/speech"
+  echo "   Voz:   $VOICE_REF"
+  echo "   Úsala con: ia say \"texto\" · Ctrl+C para parar"
+  echo
+  exec "$LLAMA_BIN" serve -hf "$VOICE_REPO" --port "$VOICE_PORT" -np 1 -c 8192 --tts-lang es
+}
+
+ensure_voice() {  # starts the voice server in the background if it is not running
+  voice_up && return 0
+  local waited=0
+  if [[ -z "$(server_pids voice)" ]]; then
+    echo "→ Arrancando la voz en segundo plano (log: $VOICE_LOG)…"
+    mkdir -p "$(dirname "$VOICE_LOG")"
+    IA_YES=1 nohup "$0" voice > "$VOICE_LOG" 2>&1 &
+  else
+    echo "→ La voz se está cargando…"
+  fi
+  while (( waited < 900 )); do
+    voice_up && return 0
+    if [[ -z "$(server_pids voice)" ]] && (( waited > 5 )); then
+      echo "✗ La voz no arrancó. Mira $VOICE_LOG"
+      tail -5 "$VOICE_LOG" 2>/dev/null | sed 's/^/   /'
+      exit 1
+    fi
+    sleep 1
+    waited=$((waited + 1))
+  done
+  echo "✗ La voz no estaba lista tras ${waited}s. Mira $VOICE_LOG"
+  exit 1
+}
+
+voice_request() {  # $1 = text, $2 = output wav
+  local body code ref=""
+  body="$(mktemp "${TMPDIR:-/tmp}/ia-say-body.XXXXXX")"
+  [[ -f "$VOICE_REF" ]] && ref="$VOICE_REF"
+  perl -CSDA -MJSON::PP -MMIME::Base64 -e '
+    my ($text, $ref) = @ARGV;
+    my %req = (input => $text, lang => "es", n_predict => 1500);
+    if ($ref ne "") {
+      open(my $f, "<:raw", $ref) or die "cannot read $ref\n";
+      local $/; $req{speaker_ref_b64} = encode_base64(<$f>, "");
+    }
+    print JSON::PP->new->ascii->canonical->encode(\%req);
+  ' -- "$1" "$ref" > "$body"
+  code="$(curl -s -X POST "http://127.0.0.1:$VOICE_PORT/tts" -H "Content-Type: application/json" \
+    -d @"$body" -o "$2" -w '%{http_code}')" || code="000"
+  rm -f "$body"
+  if [[ "$code" != "200" ]]; then
+    echo "✗ La voz respondió HTTP $code: $(head -c 300 "$2" 2>/dev/null)"
+    return 1
+  fi
+}
+
+say_text() {  # ia say "text"  ·  pbpaste | ia say
+  local text tmp chunk i=0 player=""
+  if [[ $# -gt 0 ]]; then text="$*"; elif [[ ! -t 0 ]]; then text="$(cat)"; else text=""; fi
+  if [[ -z "${text//[[:space:]]/}" ]]; then
+    echo "Uso: ia say \"texto\"   (o: pbpaste | ia say)"
+    exit 1
+  fi
+  ensure_voice
+  tmp="$(mktemp -d "${TMPDIR:-/tmp}/ia-say.XXXXXX")"
+  # Chunks: the first sentence alone (so it starts sounding soon), then up to ~220 characters each.
+  printf '%s' "$text" | perl -CSD -0777 -ne '
+    s/\s+/ /g; s/^ | $//g;
+    my ($buf, $first) = ("", 1);
+    for my $s (split /(?<=[.!?:;])\s+/) {
+      if ($first) { print "$s\n"; $first = 0; next }
+      if (length($buf) && length($buf) + length($s) > 220) { print "$buf\n"; $buf = $s }
+      else { $buf = length($buf) ? "$buf $s" : $s }
+    }
+    print "$buf\n" if length $buf;
+  ' > "$tmp/chunks.txt"
+  # While one chunk plays, the next one is being generated.
+  while IFS= read -r chunk; do
+    [[ -n "$chunk" ]] || continue
+    i=$((i + 1))
+    if ! voice_request "$chunk" "$tmp/$i.wav"; then break; fi
+    if [[ -n "$player" ]]; then wait "$player" || true; fi
+    afplay "$tmp/$i.wav" &
+    player=$!
+  done < "$tmp/chunks.txt"
+  if [[ -n "$player" ]]; then wait "$player" || true; fi
+  rm -rf "$tmp"
 }
 
 # ---------- menú ----------
@@ -541,6 +704,7 @@ menu() {
   echo "  2) Bonsai 2 9B     $(mark has_9b '3,5 GB')   $(fmt_tags hermes) (modo Hermes, 64K)"
   echo "  3) Xiaomi-OCR      $(mark has_ocr '0,9 GB')   $(fmt_tags ocr)"
   echo "  4) Embla 1         $(mark has_embla '5,6 GB')   $(fmt_tags embla) (en pruebas)"
+  echo "  5) Voz (Chatterbox) $(mark has_voice '1,2 GB')   $(fmt_tags voice) (puerto $VOICE_PORT)"
   echo "  t) ¿Qué uso para…? (modelos por etiqueta)"
   echo "  l) Ver instalados y espacio ocupado"
   echo "  b) Borrar un modelo"
@@ -552,6 +716,7 @@ menu() {
     2) run_hermes ;;
     3) run_ocr ;;
     4) run_embla ;;
+    5) run_voice ;;
     t|T) by_tag ;;
     l|L) list_installed ;;
     b|B) delete_menu ;;
@@ -563,6 +728,8 @@ menu() {
 case "${1:-}" in
   ornith)        run_ornith "${2:-}" ;;
   embla)         run_embla ;;
+  voice|voz)     if [[ "${2:-}" == "stop" ]]; then stop_voice; echo "Listo."; else run_voice; fi ;;
+  say)           shift; say_text ${@+"$@"} ;;
   mimo|qwopus)   echo "«$1» se descartó en ia-bench (9 nov 2026); usa «ia ornith». Para borrarlo: ia rm $1"; exit 1 ;;
   hermes|agent)  run_hermes ;;
   9b)            run_9b ;;
@@ -572,5 +739,5 @@ case "${1:-}" in
   rm)            delete_model "${2:-}" ;;
   stop)          stop_all; echo "Listo." ;;
   "")            menu ;;
-  *)             echo "Uso: ia [ornith [base|dflash|ngram]|hermes|9b|ocr|tags [tag]|list|rm <modelo>|stop]"; exit 1 ;;
+  *)             echo "Uso: ia [ornith [base|dflash|ngram]|hermes|9b|ocr|voice [stop]|say \"texto\"|tags [tag]|list|rm <modelo>|stop]"; exit 1 ;;
 esac
