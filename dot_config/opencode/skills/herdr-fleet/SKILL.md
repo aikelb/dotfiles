@@ -63,14 +63,16 @@ description: >
 
 | Task | Tier |
 |---|---|
-| Non-sensitive mechanics, code, docs, research | **Default: Command Code** (`commandcode/zai-org/GLM-5.3`, set as `model` in `~/.config/opencode/opencode.jsonc`). Every request carries `x-cmd-zdr: 1` |
-| Hard task the user asked to give to a stronger worker | `commandcode/moonshotai/Kimi-K3.1-Pro` |
-| Worker runs out of one **model's** monthly allowance (a limit error that names the model or its allowance, not the plan) | Pre-authorized by the user, no need to ask: Claude switches that worker to the next `commandcode/` model with allowance left, in this order: `zai-org/GLM-5.3` → `deepseek/deepseek-v4.1-flash` → `z-ai/glm-5.3-flash` → `inclusionai/ling-3.1-flash` → `MiniMaxAI/MiniMax-M3` (`/models` in the pane; opencode v2.3+ has no `-m` flag), re-dispatches the task and tells the user which model it moved to and why. |
+| Non-sensitive mechanics, code, docs, research | **Default: Command Code** `commandcode/deepseek/deepseek-v4.1-flash`; on weekdays 01–04 and 06–10 UTC (DeepSeek peak price) start with `commandcode/xiaomi/mimo-v2.6-flash` instead. Every request carries `x-cmd-zdr: 1`. The `model` in `~/.config/opencode/opencode.jsonc` is the user's own default and may be a free, non-ZDR model: a new worker opens on it, so always switch it to the intended `commandcode/` model and check the status line before the first dispatch. |
+| Harder task, or the cheap model fell short on it | `commandcode/xiaomi/mimo-v2.6-pro` → `commandcode/tencent/hy4-preview` → `commandcode/deepseek/deepseek-v4-pro`; tell the user which one |
+| Hard task the user asked to give to the strongest worker | `commandcode/moonshotai/Kimi-K3.1-Pro`, one task per session (its cached tokens cost ~70x DeepSeek Flash's) |
+| Worker runs out of one **model's** monthly allowance (a limit error that names the model or its allowance, not the plan) | Pre-authorized by the user, no need to ask: Claude switches that worker to the next `commandcode/` model with allowance left, in this order: `deepseek/deepseek-v4.1-flash` → `xiaomi/mimo-v2.6-flash` → `minimax/minimax-m3.1-flash` → `z-ai/glm-5.3-flash` → `tencent/hy4-flash` → `MiniMaxAI/MiniMax-M3` (`/models` in the pane; opencode v2.3+ has no `-m` flag), re-dispatches the task and tells the user which model it moved to and why. |
 | Command Code **plan** window hit: `429 RATE_LIMITED`, "You've reached your 5-hour/weekly usage limit for your plan … resets at <time>" | The whole plan is paused and every `commandcode/` model will fail the same way, so don't switch models. Stop dispatching to Command Code workers, report the reset time (convert to Atlantic/Canary) and keep the work with Claude. No local/ornith or other provider unless the user asks for it. |
 | Command Code **free** models (`commandcode-free/…`: Glyph Cluster, Flint, Inkling 2 Small) | Not zero-retention: prompts may be retained or used for training. Never a default, never a fallback (not for allowance-out, not when the plan window is hit). Only when the user explicitly allows them in this session or for this launch, and only for non-sensitive content (public code, generic questions, docs with no private data). Say in the dispatch report that a free model was used. |
 | Always, with Command Code | Never buy credits, turn on auto reload or remove the ZDR header. A `422 cmd_zdr_no_providers` means that model has no ZDR route: pick another, don't work around it. Any other model switch still follows the Dialog gate. |
 | Privacy-critical, no external egress | local/ornith — only if the `ia` server (llama.cpp) is up on port 8080; verify before use |
-| codex / ChatGPT Go | Only on explicit user request; stop on usage-limit screens |
+| ChatGPT Go: `openai/gpt-6-luna` in OpenCode, or codex | The user's own default, not zero-retention (training is off in ChatGPT). For workers only on explicit user request and only non-sensitive content; stop on usage-limit screens |
+| `zai-org/GLM-5.3` and other `commandcode/` models not ranked above | Only when the user asks for them |
 | Claude | Never dispatch from this skill. Claude panes belong to the user |
 
 ## Runbook
