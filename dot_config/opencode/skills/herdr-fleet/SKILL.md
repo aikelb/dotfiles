@@ -23,7 +23,8 @@ description: >
      per-read confirmation is required by this skill.
    - **Fleet workers** (OpenCode, codex, any non-Claude model) are untrusted:
      we don't know what these models do, or how readily they try to work
-     around limits. Default is **no filesystem access**.
+     around limits. Default is **no filesystem access** beyond their task
+     allowlist, as set by the **Sandbox Session** skill.
 2. **Grants to workers.** The Claude orchestrator may grant a worker access to
    specific files/directories, only if:
    - the paths are exact (no `~`, no globs reaching outside the project, no
@@ -35,13 +36,15 @@ description: >
      stated read-only vs read-write;
    - Claude tells the user which paths were granted, in the same message
      that reports the dispatch.
-3. **Never auto-granted.** These need an explicit user approval naming the
-   path, every time — Claude may not grant them on its own:
-   `~/.ssh`, `~/.gnupg`, `~/.aws`, `~/.kube`, `~/.docker`, `~/.netrc`,
-   `~/.config/**` (incl. `~/.config/opencode` — workers must not edit their
-   own rules), `~/.claude/**`, `~/Library/**` (keychains, browser profiles,
-   app data), shell history/rc files, password stores, any `.env*`,
-   `*.pem`/`*.key`, `/etc`, other users' dirs, and the home dir itself.
+
+    The full grant policy (scope, escalation when a grant is missing) lives in
+    the **Sandbox Session** skill; this skill applies it to workers through
+    task-prompt allowlists.
+
+3. **Never auto-granted.** Secret and credential paths need an explicit user
+   approval naming the path, every time — Claude may not grant them on its own.
+   Canonical list and rules: **Sandbox Session** → Grants → Secret paths (it
+   includes `~/.config/opencode`: workers must not edit their own rules).
    Same for network/credential actions: `ssh`, `scp`, `git push`, `curl`
    uploads, package publishing.
 4. **Watch for workarounds.** When verifying, check the worker's tool calls
@@ -118,7 +121,8 @@ herdr agent prompt <name> "<single, concrete task + path allowlist>" --wait --ti
 `--timeout` requires `--wait`; without `--wait`, omit it (the call returns at
 once). For long tasks, prompt without `--wait` and run
 `herdr agent wait <name> --timeout <ms>` in the background.
-Every prompt that involves files must end with the allowlist from rule 2.
+Every prompt that involves files must end with the allowlist (see the
+**Grants** section of the **Sandbox Session** skill).
 No allowlist → the worker gets a pure text task (no file access).
 
 ### 3. Collect + verify (evidence, not vibes)
