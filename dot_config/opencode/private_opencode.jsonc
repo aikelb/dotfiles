@@ -1,0 +1,235 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  // Models and providers. Credentials are managed by `opencode connect`.
+  "model": "openai/gpt-6-luna",
+  // Local title generation via `ia` (start with: `ia ornith`).
+  "small_model": "local/ornith",
+  // Block legacy/direct providers; use the configured alternatives below.
+  "policies": [
+    {
+      "action": "provider.use",
+      "resource": "deepseek",
+      "effect": "deny"
+    },
+    {
+      "action": "provider.use",
+      "resource": "opencode",
+      "effect": "deny"
+    }
+  ],
+  "providers": {
+    "commandcode": {
+      "name": "Command Code",
+      "package": "@opencode/ai/providers/openai-compatible",
+      "settings": {
+        "baseURL": "https://api.commandcode.ai/provider/v1"
+      },
+      // Enforce zero-data-retention routing; requests fail if no ZDR upstream exists.
+      "headers": {
+        "x-cmd-zdr": "1"
+      },
+      // Context/output limits control OpenCode's context handling, not provider pricing.
+      "models": {
+        "deepseek/deepseek-v4.1-flash": {
+          "name": "DeepSeek V4.1 Flash",
+          "limit": {
+            "context": 131072,
+            "output": 32768
+          }
+        },
+        "xiaomi/mimo-v2.6-flash": {
+          "name": "MiMo V2.6 Flash (ZDR pending)",
+          "limit": {
+            "context": 131072,
+            "output": 32768
+          }
+        },
+        "minimax/minimax-m3.1-flash": {
+          "name": "MiniMax M3.1 Flash (ZDR pending)",
+          "limit": {
+            "context": 131072,
+            "output": 32768
+          }
+        },
+        "tencent/hy4-flash": {
+          "name": "Hy4 Flash (ZDR pending)",
+          "limit": {
+            "context": 131072,
+            "output": 32768
+          }
+        },
+        "tencent/hy4-preview": {
+          "name": "Hy4 Preview (ZDR pending)",
+          "limit": {
+            "context": 131072,
+            "output": 32768
+          }
+        },
+        "zai-org/GLM-5.3": {
+          "name": "GLM-5.3",
+          "limit": {
+            "context": 131072,
+            "output": 32768
+          }
+        },
+        "moonshotai/Kimi-K3.1-Pro": {
+          "name": "Kimi K3.1 Pro",
+          "limit": {
+            "context": 131072,
+            "output": 32768
+          }
+        },
+        "moonshotai/Kimi-K2.7-Code": {
+          "name": "Kimi K2.7 Code",
+          "limit": {
+            "context": 131072,
+            "output": 32768
+          }
+        },
+        "deepseek/deepseek-v4-pro": {
+          "name": "DeepSeek V4 Pro",
+          "limit": {
+            "context": 131072,
+            "output": 32768
+          }
+        },
+        "z-ai/glm-5.3-flash": {
+          "name": "GLM-5.3 Flash",
+          "limit": {
+            "context": 131072,
+            "output": 32768
+          }
+        },
+        "inclusionai/ling-3.1-flash": {
+          "name": "Ling 3.1 Flash",
+          "limit": {
+            "context": 131072,
+            "output": 32768
+          }
+        },
+        "MiniMaxAI/MiniMax-M3": {
+          "name": "MiniMax M3",
+          "limit": {
+            "context": 131072,
+            "output": 32768
+          }
+        },
+        "Qwen/Qwen4-Max": {
+          "name": "Qwen4 Max",
+          "limit": {
+            "context": 131072,
+            "output": 32768
+          }
+        },
+        "xiaomi/mimo-v2.6-pro": {
+          "name": "MiMo V2.6 Pro",
+          "limit": {
+            "context": 131072,
+            "output": 32768
+          }
+        },
+        "ornith/ornith-1.5-122b": {
+          "name": "Ornith 1.5 122B",
+          "limit": {
+            "context": 131072,
+            "output": 32768
+          }
+        }
+      }
+    },
+    // Command Code free tier. No ZDR; use only for non-sensitive requests.
+    "commandcode-free": {
+      "name": "Command Code FREE (no ZDR)",
+      "package": "@opencode/ai/providers/openai-compatible",
+      "settings": {
+        "baseURL": "https://api.commandcode.ai/provider/v1"
+      },
+      "models": {
+        "stealth/glyph-cluster:free": {
+          "name": "Glyph Cluster (free, no ZDR)",
+          "limit": {
+            "context": 131072,
+            "output": 32768
+          }
+        }
+      }
+    },
+    // OpenCode free tier. No ZDR; use only for non-sensitive requests.
+    // Authenticate with `opencode connect` (provider: `opencode-free`).
+    "opencode-free": {
+      "name": "OpenCode FREE (no ZDR)",
+      "package": "@opencode/ai/providers/openai-compatible",
+      "settings": {
+        "baseURL": "https://opencode.ai/inference/openai/v1"
+      },
+      "models": {
+        "deepseek-v4.1-flash-free": {
+          "name": "DeepSeek V4.1 Flash Free",
+          "limit": {
+            "context": 200000,
+            "output": 32000
+          }
+        },
+        "beam-free": {
+          "name": "Beam Free",
+          "limit": {
+            "context": 1048576,
+            "output": 131072
+          }
+        },
+        "mimo-v2.6-flash-free": {
+          "name": "MiMo-V2.6-Flash Free",
+          "limit": {
+            "context": 200000,
+            "output": 32000
+          }
+        },
+        "nemotron-3.5-super-vl-free": {
+          "name": "Nemotron 3.5 Super VL Free",
+          "limit": {
+            "context": 1048576,
+            "output": 131072
+          }
+        },
+        "nemotron-3.5-lightning-free": {
+          "name": "Nemotron 3.5 Lightning Free",
+          "limit": {
+            "context": 262144,
+            "output": 262144
+          }
+        }
+      }
+    },
+    "local": {
+      "name": "Local (ia)",
+      "package": "@opencode/ai/providers/openai-compatible",
+      "settings": {
+        "baseURL": "http://127.0.0.1:8080/v1"
+      },
+      "models": {
+        // Model ID must match the name exposed by the local llama.cpp server.
+        "ornith": {
+          "name": "Ornith-1.5 9B (local)",
+          "limit": {
+            "context": 65536,
+            "output": 16384
+          }
+        }
+      }
+    }
+  },
+  "mcp": {
+    "servers": {
+      "nogon": {
+        "type": "remote",
+        "url": "http://10.48.237.1:4433/mcp",
+        "oauth": false,
+        "headers": {
+          "Authorization": "Bearer {env:NOGON_ACCESS_TOKEN}",
+          "Origin": "nogon://"
+        },
+        "timeout": 15000
+      }
+    }
+  }
+}
