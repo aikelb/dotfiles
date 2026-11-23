@@ -6,10 +6,11 @@
 #
 # Uso:
 #   ia-bench                          → los modelos principales (descarga los que falten)
-#   ia-bench ornith ornith-base       → solo esos (variantes incluidas)
+#   ia-bench mellum mellum-mtp        → solo esos (variantes incluidas)
 #   ia-bench --installed-only         → salta los que no estén descargados
 #   ia-bench --code-runs 3            → repite la prueba de código N veces
-#   ia-bench --max-tokens 8192        → límite de tokens por respuesta (por defecto 4096)
+#   ia-bench --max-tokens 4096        → límite de tokens por respuesta (por defecto 8192:
+#                                       Mellum piensa hasta 4096 y luego responde)
 #   ia-bench --fast                   → menos tokens (1500), para una pasada rápida
 #
 # Pruebas
@@ -50,28 +51,16 @@ IA = os.environ.get("IA_BIN") or shutil.which("ia") or os.path.join(HOME, ".loca
 # Each entry: name in the results, description, `ia` arguments, tests,
 # extra environment, base model for «×base» (or None), id in `ia list`, default run.
 MODELOS = [
-    {"nombre": "ornith", "descripcion": "Ornith-1.5 9B (MTP, visión, pensar ≤ 2048)",
-     "ia": ["ornith"], "pruebas": ["doc", "texto"], "base": "ornith-base", "lista": "ornith", "defecto": True},
-    {"nombre": "ornith-base", "descripcion": "Ornith-1.5 9B sin borrador",
-     "ia": ["ornith", "base"], "pruebas": ["velocidad"], "lista": "ornith"},
-    {"nombre": "ornith-dflash", "descripcion": "Ornith + DFlash oficial",
-     "ia": ["ornith", "dflash"], "pruebas": ["velocidad"], "base": "ornith-base", "lista": "ornith"},
-    {"nombre": "ornith-ngram", "descripcion": "Ornith + ngram-mod",
-     "ia": ["ornith", "ngram"], "pruebas": ["velocidad"], "base": "ornith-base", "lista": "ornith"},
-    {"nombre": "mellum", "descripcion": "Mellum2.1 12B-A2.5B (MTP, pensar ≤ 2048)",
-     "ia": ["mellum"], "pruebas": ["texto"], "base": "mellum-base", "lista": "mellum"},
-    {"nombre": "mellum-base", "descripcion": "Mellum2.1 12B-A2.5B sin MTP",
-     "ia": ["mellum", "base"], "pruebas": ["velocidad"], "lista": "mellum"},
-    {"nombre": "inkling", "descripcion": "Inkling 2 Mini 26B-A3.4B (UD-Q2_K_XL, pensar ≤ 2048)",
-     "ia": ["inkling"], "pruebas": ["texto"], "lista": "inkling"},
-    {"nombre": "inkling-dspark", "descripcion": "Inkling 2 Mini + borrador DSpark",
-     "ia": ["inkling", "dspark"], "pruebas": ["velocidad"], "base": "inkling", "lista": "inkling"},
+    {"nombre": "mellum", "descripcion": "Mellum2.1 12B-A2.5B (pensar ≤ 4096)",
+     "ia": ["mellum"], "pruebas": ["texto"], "lista": "mellum", "defecto": True},
+    {"nombre": "mellum-mtp", "descripcion": "Mellum2.1 12B-A2.5B con MTP",
+     "ia": ["mellum", "mtp"], "pruebas": ["velocidad"], "base": "mellum", "lista": "mellum"},
     {"nombre": "ocr", "descripcion": "Xiaomi-OCR-0 (0,8B)",
      "ia": ["ocr"], "pruebas": ["doc"], "lista": "ocr", "defecto": True},
     {"nombre": "embla", "descripcion": "Embla 1 (MoE 10B, 1B activo)",
      "ia": ["embla"], "pruebas": ["texto"], "lista": "embla"},
 ]
-TAMANOS = {"ornith": 6.7, "mellum": 8.3, "inkling": 9.5, "ocr": 0.9, "embla": 5.6}  # GB to download, by `ia list` id
+TAMANOS = {"mellum": 8.1, "ocr": 0.9, "embla": 5.6}  # GB to download, by `ia list` id
 
 # Server processes that `ia` can start (pgrep/pkill -f take an extended regex)
 PATRON_SERVIDOR = os.environ.get("IA_BENCH_PATRON", "llama-server|llama serve|embla serve")
@@ -141,9 +130,15 @@ def http_json(method, path, body=None, timeout=1800):
 
 
 def servidor_listo():
+    # /health alone is not enough: on 23 nov 2026 another program on the port answered /health
+    # with 200 and every test got a 404. The model server must also list its models.
     try:
         with urllib.request.urlopen(BASE + "/health", timeout=3) as r:
-            return r.status == 200
+            if r.status != 200:
+                return False
+        with urllib.request.urlopen(BASE + "/v1/models", timeout=3) as r:
+            datos = json.loads(r.read().decode() or "{}")
+            return r.status == 200 and bool(datos.get("data") or datos.get("models"))
     except Exception:
         return False
 
@@ -572,7 +567,7 @@ def main():
             if not a.startswith("--") and sys.argv[k - 1] not in valores]
     solo_instalados = "--installed-only" in sys.argv or "--solo-instalados" in sys.argv
     rapido = "--fast" in sys.argv or "--rapido" in sys.argv
-    max_tok = opcion("--max-tokens", 1500 if rapido else 4096)
+    max_tok = opcion("--max-tokens", 1500 if rapido else 8192)
     runs = max(1, opcion("--code-runs", 1))
 
     paginas = sorted(glob.glob(os.path.join(TEST_DIR, "*.png")))

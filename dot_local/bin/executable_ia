@@ -5,14 +5,10 @@
 #
 # Uso:
 #   ia              → menú (marca qué modelos están instalados)
-#   ia ornith       → Ornith-1.5 9B: código, agentes, imágenes y documentos (64K)
-#                     Por defecto con MTP, visión y como mucho 2048 tokens pensando
-#                     (ganó en ia-bench el 9 nov 2026: código 7/7, documentos 100, ~15-20 tok/s)
-#   ia mellum       → Mellum2.1 12B (en pruebas): MoE con 2,5B activos, muy rápido; código y
-#                     agentes, sin visión. Por defecto con MTP (ia mellum base → sin MTP).
-#   ia inkling      → Inkling 2 Mini (en pruebas): MoE de 26B con 3,4B activos en Q2 (9,1 GB),
-#                     el mejor en las cifras de código; va justo de memoria. Sin visión por
-#                     defecto (IA_VISION=1 la activa, +0,6 GB). ia inkling dspark → con borrador.
+#   ia mellum       → Mellum2.1 12B: el modelo principal desde el 23 nov 2026. MoE con 2,5B
+#                     activos: código y agentes (OpenCode), ~30-40 tok/s, mejor en inglés que en
+#                     español. Sin visión. Piensa como mucho 4096 tokens. ia mellum mtp → con MTP
+#                     (no fue más rápido en ia-bench).
 #   ia ocr          → Xiaomi-OCR-0: pasar documentos a texto/Markdown, muy rápido
 #   ia embla        → Embla 1 (en pruebas): MoE de 10B con 1B activo, muy rápido; solo chat (256K)
 #                     (su motor no admite herramientas ni imágenes). La primera vez clona y
@@ -30,25 +26,21 @@
 #                     (code · agent · chat · vision · docs · ocr · voice)
 #   ia list         → ver qué está instalado y cuánto ocupa
 #   ia rm <modelo>  → borrar un modelo o borrador, pide confirmación
-#                     (ornith|mellum|inkling|ocr|voice, y los descartados: bonsai|mimo|mimo-mtp|
-#                     qwopus|ornith-dflash|dflash-qwen|lfm3-audio|qwen3-tts)
+#                     (mellum|ocr|voice|embla, y los descartados: ornith|inkling|bonsai|mimo|
+#                     mimo-mtp|qwopus|ornith-dflash|dflash-qwen|lfm3-audio|qwen3-tts)
 #   ia stop         → parar todo lo que esté corriendo (también la voz)
 #
-# Decodificación especulativa de Ornith, como segundo argumento:
-#   ia ornith         → MTP (su propia cabeza, no descarga nada más). Es lo normal.
-#   ia ornith base    → sin decodificación especulativa
-#   ia ornith dflash  → borrador DFlash oficial (~0,8 GB; fue algo más lento que MTP)
-#   ia ornith ngram   → ngram-mod (no ayudó en las pruebas)
-#   Necesita un llama.cpp reciente (llama update).
+# Modelos descartados (para la revisión de modelos, ver ~/models/PROMPT-revision-modelos.md):
+#   Ornith-1.5 9B (23 nov 2026): bueno, pero pesado y lento para OpenCode (~15 tok/s).
+#   Inkling 2 Mini (23 nov 2026): solo cabe en Q2 y va a ~1,7 tok/s (pide 32 GB).
 #
 # Variables opcionales:
 #   IA_CTX=32768 ia ocr    → cambiar el contexto
 #   IA_PORT=8081 ia ocr    → cambiar el puerto (por defecto 8080)
-#   IA_KV=q4_0 ia ornith   → caché KV más pequeña si va justo de memoria (por defecto q8_0)
-#   IA_NOVISION=1 ia ornith → sin la parte de imágenes (ahorra ~0,9 GB de memoria)
-#   IA_SPEC=dflash ia ornith → lo mismo que el segundo argumento
-#   IA_SPEC_N=3            → tokens que propone el borrador (mtp: 2, dflash/dspark: 8 por defecto)
-#   IA_THINK=4096 ia ornith → límite de tokens pensando (Ornith: 2048 por defecto; -1 = sin límite)
+#   IA_KV=q4_0 ia mellum   → caché KV más pequeña si va justo de memoria (por defecto q8_0)
+#   IA_SPEC=mtp ia mellum → lo mismo que el segundo argumento
+#   IA_SPEC_N=3            → tokens que propone el borrador (mtp: 2 por defecto)
+#   IA_THINK=8192 ia mellum → límite de tokens pensando (4096 por defecto; -1 = sin límite)
 #   IA_SERVER=/ruta ia …   → usar otro llama-server en vez de «llama serve»
 #   IA_YES=1 ia …          → no preguntar nada (lo usa ia-bench)
 #   IA_VOICE_PORT=8091     → puerto de la voz (por defecto 8090)
@@ -85,12 +77,18 @@ PAT_QWOPUS="Qwopus3-5-9B-Coder-Flash"
 QWOPUS_REPO="Jackrong/Qwopus3-5-9B-Coder-Flash-GGUF:Q4_K_M"            # Apache 2.0, trae MTP
 
 # Testing (23 nov 2026): faster models for OpenCode
-PAT_MELLUM="Mellum2.1-12B-A2.5B-Thinking-GGUF"
-MELLUM_REPO="JetBrains/Mellum2.1-12B-A2.5B-Thinking-GGUF"                # Apache 2.0
-MELLUM_FILE="mtp/Mellum2.1-12B-A2.5B-Thinking-MTP-Q4_K_M.gguf"           # Q4_K_M + MTP head in one file (8,3 GB)
-PAT_INKLING="unsloth--Inkling-2-Mini-GGUF"
-INKLING_REPO="unsloth/Inkling-2-Mini-GGUF:UD-Q2_K_XL"                     # Apache 2.0, 9,1 GB (+0,6 GB vision)
-INKLING_DSPARK_REPO="unsloth/Inkling-2-Mini-GGUF:Q8_0"                    # dspark-Inkling-2-Mini-Q8_0.gguf (0,4 GB)
+PAT_MELLUM="Mellum2.1-12B-A2.5B-Thinking"   # matches both repos, so ia rm also clears the old download
+# bartowski's single-file build (Q4_K_S + MTP head, 8,1 GB). The official JetBrains repo also ships a
+# separate BF16 head (mtp-*.gguf) that llama.cpp fetches and loads on top (+1,8 GB), so it is avoided.
+MELLUM_REPO="bartowski/Mellum2.1-12B-A2.5B-Thinking-MTP-GGUF:Q4_K_S"     # Apache 2.0
+# Inkling 2 Mini (Apache 2.0). unsloth's root GGUFs are for Unsloth Desktop and fail in mainline
+# llama.cpp ("tensor 'blk.24.attn_q.weight' not found"); the mainline ones live in Mainline_Support/
+# with a .gguf_file extension that -hf ignores, so `ia` downloads them by URL into ~/models/inkling.
+INKLING_DIR="$MODELS/inkling"
+INKLING_BASE_URL="https://huggingface.co/unsloth/Inkling-2-Mini-GGUF/resolve/main/Mainline_Support"
+INKLING_FILE="Inkling-2-Mini-UD-Q2_K_XL.gguf"          # 9,1 GB
+INKLING_DSPARK_FILE="dspark-Inkling-2-Mini-Q8_0.gguf"   # DSpark draft, 0,5 GB
+PAT_INKLING="unsloth--Inkling-2-Mini-GGUF"              # old non-mainline download, only for ia rm
 
 # Voice (text to speech). Chatterbox Multilingual V3 won the tts-test on 19 nov 2026.
 PAT_VOICE="chatterbox-GGUF"
@@ -123,13 +121,11 @@ SAMPLING_CODE=(--temp 0.6 --top-p 0.95 --top-k 20 --min-p 0)
 #   ocr     pasar documentos a texto, muy rápido
 #   voice   leer textos en voz alta (texto a voz)
 ALL_TAGS="code agent chat vision docs ocr voice"
-MODEL_IDS="ornith mellum inkling ocr embla voice"
+MODEL_IDS="mellum ocr embla voice"
 
 tags_of() {
   case "$1" in
-    ornith) echo "code agent chat vision docs" ;;
     mellum)  echo "code agent chat" ;;
-    inkling) echo "code agent chat vision" ;;
     ocr)    echo "ocr docs" ;;
     embla)  echo "chat" ;;   # su servidor no admite herramientas ni imágenes
     voice)  echo "voice" ;;
@@ -138,9 +134,7 @@ tags_of() {
 
 name_of() {
   case "$1" in
-    ornith) echo "Ornith-1.5 9B · MTP, visión, 64K" ;;
-    mellum)  echo "Mellum2.1 12B · MoE 2,5B activos, MTP, 64K" ;;
-    inkling) echo "Inkling 2 Mini · MoE 26B, 3,4B activos, Q2, 64K" ;;
+    mellum)  echo "Mellum2.1 12B · MoE 2,5B activos, 64K" ;;
     ocr)    echo "Xiaomi-OCR-0" ;;
     embla)  echo "Embla 1 · MoE 10B, 1B activo, 256K" ;;
     voice)  echo "Chatterbox · voz clonada, puerto $VOICE_PORT" ;;
@@ -148,7 +142,7 @@ name_of() {
 }
 
 testing_of() {  # modelos que aún están en pruebas
-  case "$1" in embla|mellum|inkling) return 0 ;; *) return 1 ;; esac
+  case "$1" in embla) return 0 ;; *) return 1 ;; esac
 }
 
 fmt_tags() {
@@ -184,10 +178,8 @@ norm_tag() {  # acepta también los nombres en español: «código», «programa
 
 installed_id() {
   case "$1" in
-    ornith) has_ornith ;;
     embla)  has_embla ;;
     mellum)  has_mellum ;;
-    inkling) has_inkling ;;
     ocr)    has_ocr ;;
     voice)  has_voice ;;
   esac
@@ -244,7 +236,7 @@ in_hf_cache() {  # $1 = patrón
 
 has_9b()     { in_hf_cache "$PAT_9B" || [[ -d "$DEMO" ]]; }
 has_mellum()  { in_hf_cache "$PAT_MELLUM"; }
-has_inkling() { in_hf_cache "$PAT_INKLING"; }
+has_inkling() { [[ -f "$INKLING_DIR/$INKLING_FILE" ]]; }
 has_mimo()   { in_hf_cache "$PAT_MIMO"; }
 has_ocr()    { in_hf_cache "$PAT_OCR"; }
 has_mimo_mtp()      { in_hf_cache "$PAT_MIMO_MTP"; }
@@ -262,6 +254,8 @@ old_installed() {
     mimo)          has_mimo ;;
     mimo-mtp)      has_mimo_mtp ;;
     qwopus)        has_qwopus ;;
+    ornith)        has_ornith ;;
+    inkling)       has_inkling || in_hf_cache "$PAT_INKLING" ;;
     ornith-dflash) has_ornith_dflash ;;
     dflash-qwen)   has_dflash_qwen ;;
     bonsai)        has_9b ;;
@@ -277,18 +271,16 @@ mark() {  # $1 = función de comprobación, $2 = tamaño aproximado de descarga
 
 list_installed() {
   echo "Modelos:"
-  echo "  ornith  $(mark has_ornith '6,7 GB')   $(fmt_tags ornith)"
+  echo "  mellum  $(mark has_mellum '8,1 GB')   $(fmt_tags mellum)"
   echo "  ocr     $(mark has_ocr '0,9 GB')   $(fmt_tags ocr)"
   echo "  voice   $(mark has_voice '1,2 GB')   $(fmt_tags voice) · referencia: $VOICE_REF"
   echo
   echo "En pruebas:"
-  echo "  mellum  $(mark has_mellum '8,3 GB')   $(fmt_tags mellum)"
-  echo "  inkling $(mark has_inkling '9,1 GB + 0,6 GB visión')   $(fmt_tags inkling)"
   echo "  embla   $(mark has_embla '5,6 GB + compilar el motor')   $(fmt_tags embla)"
   echo
   # Descartados en ia-bench (9 nov 2026): solo salen si siguen en disco, para borrarlos con ia rm
   local old="" id
-  for id in bonsai mimo mimo-mtp qwopus ornith-dflash dflash-qwen lfm3-audio qwen3-tts; do
+  for id in ornith inkling bonsai mimo mimo-mtp qwopus ornith-dflash dflash-qwen lfm3-audio qwen3-tts; do
     if old_installed "$id"; then old="$old $id"; fi
   done
   if [[ -n "$old" ]]; then
@@ -386,18 +378,18 @@ delete_model() {  # $1 = mimo|9b|ocr
     mimo)   label="MiMo-V2.6 9B";  collect_cache "$PAT_MIMO" ;;
     bonsai|9b|hermes) label="Bonsai 2 9B y el fork de Prism (~/models/Bonsai-demo)"; collect_cache "$PAT_9B"; add_if_exists "$DEMO" ;;
     mellum)        label="Mellum2.1 12B";                   collect_cache "$PAT_MELLUM" ;;
-    inkling)       label="Inkling 2 Mini (y su borrador)";  collect_cache "$PAT_INKLING" ;;
+    inkling)       label="Inkling 2 Mini (y su borrador)";  collect_cache "$PAT_INKLING"; add_if_exists "$INKLING_DIR" "$MODELS/drafts" ;;
     ocr)    label="Xiaomi-OCR-0";  collect_cache "$PAT_OCR" ;;
     mimo-mtp)      label="MiMo con MTP (VitreousCut)";      collect_cache "$PAT_MIMO_MTP" ;;
     dflash-qwen)   label="borrador DFlash de Qwen3.5-9B";   collect_cache "$PAT_DFLASH_QWEN" ;;
-    ornith)        label="Ornith-1.5 9B";                   collect_cache "$PAT_ORNITH" ;;
+    ornith)        label="Ornith-1.5 9B (descartado)";      collect_cache "$PAT_ORNITH" ;;
     ornith-dflash) label="borrador DFlash de Ornith";       collect_cache "$PAT_ORNITH_DFLASH" ;;
     qwopus)        label="Qwopus3.5 9B Coder Flash";        collect_cache "$PAT_QWOPUS" ;;
     embla)         label="Embla 1 (modelo y motor embla-metal)"; collect_cache "$PAT_EMBLA"; add_if_exists "$EMBLA_DIR" ;;
     voice|voz)     label="Chatterbox (voz; la referencia de ~/models/voices se conserva)"; collect_cache "$PAT_VOICE" ;;
     lfm3-audio)    label="LFM3-Audio 2B (voz descartada)";   collect_cache "$PAT_LFM3A" ;;
     qwen3-tts)     label="Qwen3-TTS 1.7B (voz descartada)";  collect_cache "$PAT_QWEN3TTS" ;;
-    *) echo "Uso: ia rm [ornith|mellum|inkling|ocr|voice|bonsai|mimo|mimo-mtp|dflash-qwen|ornith-dflash|qwopus|lfm3-audio|qwen3-tts]"; exit 1 ;;
+    *) echo "Uso: ia rm [mellum|ocr|voice|ornith|inkling|bonsai|mimo|mimo-mtp|dflash-qwen|ornith-dflash|qwopus|lfm3-audio|qwen3-tts]"; exit 1 ;;
   esac
 
   if [[ ${#TARGETS[@]} -eq 0 ]]; then
@@ -484,7 +476,8 @@ spec_args() {  # $1 = modo (vacío|none|mtp|dflash|dspark|ngram), $2 = repo del 
       SPEC_LABEL="DFlash (n=${IA_SPEC_N:-8})" ;;
     dspark)
       check_spec draft-dspark
-      SPEC=(-hfd "$draft" --spec-type draft-dspark --spec-draft-n-max "${IA_SPEC_N:-8}")
+      if [[ -f "$draft" ]]; then SPEC=(--spec-draft-model "$draft"); else SPEC=(-hfd "$draft"); fi
+      SPEC+=(--spec-type draft-dspark --spec-draft-n-max "${IA_SPEC_N:-8}")
       SPEC_LABEL="DSpark (n=${IA_SPEC_N:-8})" ;;
     ngram)
       check_spec ngram-mod
@@ -512,65 +505,35 @@ serve() {
     fi
     args+=(--reasoning-budget "$IA_THINK")
     if [[ "$IA_THINK" != "-1" && "$IA_THINK" != "0" ]]; then
-      args+=(--reasoning-budget-message "Ya he pensado suficiente; escribo la respuesta.")
+      args+=(--reasoning-budget-message "I have thought enough; writing the answer now.")
       label="$label · pensar ≤ $IA_THINK"
     fi
   fi
   stop_text; check_memory
   if [[ -n "$SPEC_LABEL" ]]; then label="$label · $SPEC_LABEL"; fi
   banner "$label · caché KV $kv"
-  exec "${SERVER[@]}" -hf "$repo" ${args[@]+"${args[@]}"} ${SPEC[@]+"${SPEC[@]}"} "$@" \
+  local src=(-hf "$repo")
+  if [[ "$repo" == /* ]]; then src=(-m "$repo"); fi   # a local GGUF instead of a Hugging Face repo
+  exec "${SERVER[@]}" "${src[@]}" ${args[@]+"${args[@]}"} ${SPEC[@]+"${SPEC[@]}"} "$@" \
     -c "$CTX" -np 1 --port "$PORT" --jinja --alias local \
     -fa on --cache-type-k "$kv" --cache-type-v "$kv"
 }
 
 # ---------- lanzar ----------
 
-run_ornith() {
-  # Ornith-1.5-9B (MIT): Qwen3.5-9B con RL para código y agentes. Q4_K_M (5,8 GB)
-  # + visión (0,9 GB). Trae cabeza MTP y tiene borrador DFlash oficial.
-  # Configuración ganadora en ia-bench (9 nov 2026): MTP + visión + pensar ≤ 2048.
-  #   - MTP: ~1,35× más rápido, ~80 % de aceptación, compatible con la visión.
-  #   - Sin límite piensa 2.500-4.000 tokens y se cortaba; con 2048, código 7/7 en 3 de 3.
-  CUR_ID=ornith
-  local mode="${1:-${IA_SPEC:-mtp}}"
-  if [[ "$mode" == "base" ]]; then mode=none; fi
-  IA_THINK="${IA_THINK:-2048}"
-  if [[ -z "${IA_NOVISION:-}" ]]; then IA_VISION="${IA_VISION:-1}"; fi
-  has_ornith || echo "↓ Primera vez: descargando Ornith-1.5 9B (~6,7 GB con visión)…"
-  if [[ "$mode" == "dflash" ]] && ! has_ornith_dflash; then
-    echo "↓ Primera vez: descargando el borrador DFlash de Ornith (~0,8 GB)…"
-  fi
-  serve "Ornith-1.5 9B" "$ORNITH_REPO" "$mode" \
-    "$ORNITH_DFLASH_REPO" "mtp dflash ngram" "${SAMPLING_CODE[@]}"
-}
-
 run_mellum() {
   # Mellum2.1 Thinking (JetBrains, Apache 2.0): MoE 12B, 2,5B active, trained for agentic coding.
-  # One file holds Q4_K_M and the MTP head (8,3 GB), so `base` reuses it without the head.
-  # No vision. Sampling from the model card. In testing since 23 nov 2026.
+  # One file holds Q4_K_S and the MTP head (8,1 GB), so `base` reuses it without the head.
+  # No vision. Sampling from the model card. Main model since 23 nov 2026 (ia-bench: code 7/7 with
+  # 8192 tokens, ~31-36 tok/s, 2× Ornith). MTP gave no speed-up (×0,99), so it is off by default.
+  # With 2048 thinking tokens one code attempt ran out of budget, hence 4096.
   CUR_ID=mellum
-  local mode="${1:-${IA_SPEC:-mtp}}"
-  if [[ "$mode" == "base" ]]; then mode=none; fi
-  IA_THINK="${IA_THINK:-2048}"
-  IA_NOVISION=1
-  has_mellum || echo "↓ Primera vez: descargando Mellum2.1 12B con MTP (~8,3 GB)…"
-  serve "Mellum2.1 12B" "$MELLUM_REPO" "$mode" "" "mtp" \
-    -hff "$MELLUM_FILE" "${SAMPLING_CODE[@]}"
-}
-
-run_inkling() {
-  # Inkling 2 Mini (Thinking Machines, Apache 2.0): looped MoE, 26,4B total, 3,4B active
-  # (~5,4B effective). The lab asks for 32 GB; here only unsloth's UD-Q2_K_XL fits (9,1 GB).
-  # Vision off by default to save 0,6 GB (IA_VISION=1 turns it on). Optional DSpark draft.
-  # In testing since 23 nov 2026.
-  CUR_ID=inkling
   local mode="${1:-${IA_SPEC:-none}}"
   if [[ "$mode" == "base" ]]; then mode=none; fi
-  IA_THINK="${IA_THINK:-2048}"
-  if [[ -z "${IA_VISION:-}" ]]; then IA_NOVISION=1; fi
-  has_inkling || echo "↓ Primera vez: descargando Inkling 2 Mini Q2 (~9,1 GB, +0,6 GB con visión)…"
-  serve "Inkling 2 Mini (Q2)" "$INKLING_REPO" "$mode" "$INKLING_DSPARK_REPO" "dspark"
+  IA_THINK="${IA_THINK:-4096}"
+  IA_NOVISION=1
+  has_mellum || echo "↓ Primera vez: descargando Mellum2.1 12B con MTP (~8,1 GB)…"
+  serve "Mellum2.1 12B" "$MELLUM_REPO" "$mode" "" "mtp" "${SAMPLING_CODE[@]}"
 }
 
 run_embla() {
@@ -754,13 +717,11 @@ say_text() {  # ia say [-v voice] "text"  ·  pbpaste | ia say [-v voice]
 
 menu() {
   echo "¿Qué hago?"
-  echo "  1) Ornith-1.5 9B   $(mark has_ornith '6,7 GB')   $(fmt_tags ornith)"
+  echo "  1) Mellum2.1 12B   $(mark has_mellum '8,1 GB')   $(fmt_tags mellum)"
   echo "  2) Xiaomi-OCR      $(mark has_ocr '0,9 GB')   $(fmt_tags ocr)"
   echo "  3) Voz (Chatterbox) $(mark has_voice '1,2 GB')   $(fmt_tags voice) (puerto $VOICE_PORT)"
   echo "  En pruebas:"
-  echo "  4) Mellum2.1 12B   $(mark has_mellum '8,3 GB')   $(fmt_tags mellum)"
-  echo "  5) Inkling 2 Mini  $(mark has_inkling '9,1 GB')   $(fmt_tags inkling)"
-  echo "  6) Embla 1         $(mark has_embla '5,6 GB')   $(fmt_tags embla)"
+  echo "  4) Embla 1         $(mark has_embla '5,6 GB')   $(fmt_tags embla)"
   echo "  t) ¿Qué uso para…? (modelos por etiqueta)"
   echo "  l) Ver instalados y espacio ocupado"
   echo "  b) Borrar un modelo"
@@ -768,12 +729,10 @@ menu() {
   echo "  q) Salir"
   read -r -p "> " opt
   case "$opt" in
-    1) run_ornith ;;
+    1) run_mellum ;;
     2) run_ocr ;;
     3) run_voice ;;
-    4) run_mellum ;;
-    5) run_inkling ;;
-    6) run_embla ;;
+    4) run_embla ;;
     t|T) by_tag ;;
     l|L) list_installed ;;
     b|B) delete_menu ;;
@@ -783,19 +742,18 @@ menu() {
 }
 
 case "${1:-}" in
-  ornith)        run_ornith "${2:-}" ;;
   mellum)        run_mellum "${2:-}" ;;
-  inkling)       run_inkling "${2:-}" ;;
+  ornith|inkling) echo "«$1» se descartó el 23 nov 2026; usa «ia mellum». Para borrarlo del disco: ia rm $1"; exit 1 ;;
   embla)         run_embla ;;
   voice|voz)     case "${2:-}" in stop) stop_voice; echo "Listo." ;; list) list_voices ;; *) run_voice ;; esac ;;
   say)           shift; say_text ${@+"$@"} ;;
-  mimo|qwopus)   echo "«$1» se descartó en ia-bench (9 nov 2026); usa «ia ornith». Para borrarlo: ia rm $1"; exit 1 ;;
-  hermes|agent|9b) echo "Bonsai (ia $1) se quitó el 23 nov 2026; usa «ia ornith». Para borrarlo del disco: ia rm bonsai"; exit 1 ;;
+  mimo|qwopus)   echo "«$1» se descartó en ia-bench (9 nov 2026); usa «ia mellum». Para borrarlo: ia rm $1"; exit 1 ;;
+  hermes|agent|9b) echo "Bonsai (ia $1) se quitó el 23 nov 2026; usa «ia mellum». Para borrarlo del disco: ia rm bonsai"; exit 1 ;;
   ocr|ocrx)      run_ocr ;;
   tags|tag|for)  by_tag "${2:-}" ;;
   list)          list_installed ;;
   rm)            delete_model "${2:-}" ;;
   stop)          stop_all; echo "Listo." ;;
   "")            menu ;;
-  *)             echo "Uso: ia [ornith [base|dflash|ngram]|mellum [base]|inkling [dspark]|ocr|voice [stop|list]|say [-v voz] \"texto\"|tags [tag]|list|rm <modelo>|stop]"; exit 1 ;;
+  *)             echo "Uso: ia [mellum [mtp]|ocr|voice [stop|list]|say [-v voz] \"texto\"|tags [tag]|list|rm <modelo>|stop]"; exit 1 ;;
 esac
