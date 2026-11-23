@@ -1,15 +1,18 @@
 #!/usr/bin/env bash
 # ia — lanzador de modelos locales
-# Un solo modelo cargado cada vez, siempre en http://localhost:8080
-# (así Hermes, OpenCode, etc. apuntan siempre a la misma URL).
+# Un solo modelo de texto cargado cada vez, siempre en http://localhost:8080/v1 y con el nombre
+# «local» (--alias local), sea cual sea. OpenCode usa «local/local» y habla con el que esté en marcha.
 #
 # Uso:
 #   ia              → menú (marca qué modelos están instalados)
 #   ia ornith       → Ornith-1.5 9B: código, agentes, imágenes y documentos (64K)
 #                     Por defecto con MTP, visión y como mucho 2048 tokens pensando
 #                     (ganó en ia-bench el 9 nov 2026: código 7/7, documentos 100, ~15-20 tok/s)
-#   ia hermes       → Bonsai 2 9B en modo agente para Hermes (64K)
-#   ia 9b           → Bonsai 2 9B normal (16K)
+#   ia mellum       → Mellum2.1 12B (en pruebas): MoE con 2,5B activos, muy rápido; código y
+#                     agentes, sin visión. Por defecto con MTP (ia mellum base → sin MTP).
+#   ia inkling      → Inkling 2 Mini (en pruebas): MoE de 26B con 3,4B activos en Q2 (9,1 GB),
+#                     el mejor en las cifras de código; va justo de memoria. Sin visión por
+#                     defecto (IA_VISION=1 la activa, +0,6 GB). ia inkling dspark → con borrador.
 #   ia ocr          → Xiaomi-OCR-0: pasar documentos a texto/Markdown, muy rápido
 #   ia embla        → Embla 1 (en pruebas): MoE de 10B con 1B activo, muy rápido; solo chat (256K)
 #                     (su motor no admite herramientas ni imágenes). La primera vez clona y
@@ -20,13 +23,15 @@
 #                     (alias: ia voz) · ia voice stop → parar solo la voz
 #   ia say "texto"  → leer un texto en voz alta (también: pbpaste | ia say). Arranca la voz
 #                     en segundo plano si no está en marcha.
+#   ia say -v jeni "texto" → con otra voz de referencia: un nombre de ~/models/voices/<nombre>.wav
+#                     o la ruta de un .wav/.mp3. ia voice list → voces disponibles.
 #   ia tags         → qué modelo usar para cada cosa (etiquetas)
 #   ia tags code    → solo los modelos con esa etiqueta
 #                     (code · agent · chat · vision · docs · ocr · voice)
 #   ia list         → ver qué está instalado y cuánto ocupa
 #   ia rm <modelo>  → borrar un modelo o borrador, pide confirmación
-#                     (ornith|9b|ocr|voice, y los descartados: mimo|mimo-mtp|qwopus|ornith-dflash|
-#                     dflash-qwen|lfm3-audio|qwen3-tts)
+#                     (ornith|mellum|inkling|ocr|voice, y los descartados: bonsai|mimo|mimo-mtp|
+#                     qwopus|ornith-dflash|dflash-qwen|lfm3-audio|qwen3-tts)
 #   ia stop         → parar todo lo que esté corriendo (también la voz)
 #
 # Decodificación especulativa de Ornith, como segundo argumento:
@@ -37,14 +42,14 @@
 #   Necesita un llama.cpp reciente (llama update).
 #
 # Variables opcionales:
-#   IA_CTX=32768 ia 9b     → cambiar el contexto
+#   IA_CTX=32768 ia ocr    → cambiar el contexto
 #   IA_PORT=8081 ia ocr    → cambiar el puerto (por defecto 8080)
 #   IA_KV=q4_0 ia ornith   → caché KV más pequeña si va justo de memoria (por defecto q8_0)
 #   IA_NOVISION=1 ia ornith → sin la parte de imágenes (ahorra ~0,9 GB de memoria)
 #   IA_SPEC=dflash ia ornith → lo mismo que el segundo argumento
-#   IA_SPEC_N=3            → tokens que propone el borrador (mtp: 2, dflash: 8 por defecto)
+#   IA_SPEC_N=3            → tokens que propone el borrador (mtp: 2, dflash/dspark: 8 por defecto)
 #   IA_THINK=4096 ia ornith → límite de tokens pensando (Ornith: 2048 por defecto; -1 = sin límite)
-#   IA_SERVER=fork ia …    → usar el llama-server del fork de Prism en vez de «llama serve»
+#   IA_SERVER=/ruta ia …   → usar otro llama-server en vez de «llama serve»
 #   IA_YES=1 ia …          → no preguntar nada (lo usa ia-bench)
 #   IA_VOICE_PORT=8091     → puerto de la voz (por defecto 8090)
 #   IA_VOICE_REF=~/x.wav   → voz de referencia para clonar (por defecto ~/models/voices/ibai.wav)
@@ -54,16 +59,14 @@ set -euo pipefail
 PORT="${IA_PORT:-8080}"
 CTX="${IA_CTX:-16384}"
 MODELS="$HOME/models"
-DEMO="$MODELS/Bonsai-demo"
-FORK_SERVER="$DEMO/bin/mac/llama-server"          # fork de Prism (para Bonsai; no borres Bonsai-demo)
+DEMO="$MODELS/Bonsai-demo"          # Prism fork for Bonsai; discarded 23 nov 2026, only kept so `ia rm bonsai` can delete it
 LLAMA_BIN="$(command -v llama || echo "$HOME/.local/bin/llama")"  # llama.cpp normal (llama.app; «llama serve» = llama-server)
 
 # Los que se bajan con -hf quedan en una de estas cachés
 HF_CACHES=("$HOME/.cache/huggingface/hub" "$HOME/Library/Caches/llama.cpp")
 
 # Patrones con los que aparece cada modelo en las cachés, y repos
-PAT_9B="Ternary-Bonsai-2-9B"
-B9_REPO="prism-ml/Ternary-Bonsai-2-9B-gguf:PQ2_0"
+PAT_9B="Ternary-Bonsai-2-9B"        # discarded 23 nov 2026 (ia rm bonsai)
 PAT_MIMO="bartowski*MiMo-V2.6-Distill-Qwen-9B-GGUF"   # sin «MTP», para no confundirlo con mimo-mtp
 MIMO_REPO="bartowski/MiMo-V2.6-Distill-Qwen-9B-GGUF:Q4_K_M"
 PAT_OCR="Xiaomi-OCR-0"
@@ -80,6 +83,14 @@ PAT_ORNITH_DFLASH="Ornith-1.5-9B-DFlash"
 ORNITH_DFLASH_REPO="abenzerps/Ornith-1.5-9B-DFlash-GGUF:Q4_K_M"
 PAT_QWOPUS="Qwopus3-5-9B-Coder-Flash"
 QWOPUS_REPO="Jackrong/Qwopus3-5-9B-Coder-Flash-GGUF:Q4_K_M"            # Apache 2.0, trae MTP
+
+# Testing (23 nov 2026): faster models for OpenCode
+PAT_MELLUM="Mellum2.1-12B-A2.5B-Thinking-GGUF"
+MELLUM_REPO="JetBrains/Mellum2.1-12B-A2.5B-Thinking-GGUF"                # Apache 2.0
+MELLUM_FILE="mtp/Mellum2.1-12B-A2.5B-Thinking-MTP-Q4_K_M.gguf"           # Q4_K_M + MTP head in one file (8,3 GB)
+PAT_INKLING="unsloth--Inkling-2-Mini-GGUF"
+INKLING_REPO="unsloth/Inkling-2-Mini-GGUF:UD-Q2_K_XL"                     # Apache 2.0, 9,1 GB (+0,6 GB vision)
+INKLING_DSPARK_REPO="unsloth/Inkling-2-Mini-GGUF:Q8_0"                    # dspark-Inkling-2-Mini-Q8_0.gguf (0,4 GB)
 
 # Voice (text to speech). Chatterbox Multilingual V3 won the tts-test on 19 nov 2026.
 PAT_VOICE="chatterbox-GGUF"
@@ -112,13 +123,13 @@ SAMPLING_CODE=(--temp 0.6 --top-p 0.95 --top-k 20 --min-p 0)
 #   ocr     pasar documentos a texto, muy rápido
 #   voice   leer textos en voz alta (texto a voz)
 ALL_TAGS="code agent chat vision docs ocr voice"
-MODEL_IDS="ornith hermes 9b ocr embla voice"
+MODEL_IDS="ornith mellum inkling ocr embla voice"
 
 tags_of() {
   case "$1" in
     ornith) echo "code agent chat vision docs" ;;
-    hermes) echo "agent chat" ;;
-    9b)     echo "chat" ;;
+    mellum)  echo "code agent chat" ;;
+    inkling) echo "code agent chat vision" ;;
     ocr)    echo "ocr docs" ;;
     embla)  echo "chat" ;;   # su servidor no admite herramientas ni imágenes
     voice)  echo "voice" ;;
@@ -128,8 +139,8 @@ tags_of() {
 name_of() {
   case "$1" in
     ornith) echo "Ornith-1.5 9B · MTP, visión, 64K" ;;
-    hermes) echo "Bonsai 2 9B · modo Hermes, 64K" ;;
-    9b)     echo "Bonsai 2 9B · 16K" ;;
+    mellum)  echo "Mellum2.1 12B · MoE 2,5B activos, MTP, 64K" ;;
+    inkling) echo "Inkling 2 Mini · MoE 26B, 3,4B activos, Q2, 64K" ;;
     ocr)    echo "Xiaomi-OCR-0" ;;
     embla)  echo "Embla 1 · MoE 10B, 1B activo, 256K" ;;
     voice)  echo "Chatterbox · voz clonada, puerto $VOICE_PORT" ;;
@@ -137,7 +148,7 @@ name_of() {
 }
 
 testing_of() {  # modelos que aún están en pruebas
-  case "$1" in embla) return 0 ;; *) return 1 ;; esac
+  case "$1" in embla|mellum|inkling) return 0 ;; *) return 1 ;; esac
 }
 
 fmt_tags() {
@@ -175,7 +186,8 @@ installed_id() {
   case "$1" in
     ornith) has_ornith ;;
     embla)  has_embla ;;
-    hermes|9b) has_9b ;;
+    mellum)  has_mellum ;;
+    inkling) has_inkling ;;
     ocr)    has_ocr ;;
     voice)  has_voice ;;
   esac
@@ -213,7 +225,6 @@ by_tag() {  # ia tags [tag]
 CUR_ID=""   # modelo que se está lanzando (para mostrar sus etiquetas)
 
 case "${IA_SERVER:-}" in
-  fork) SERVER=("$FORK_SERVER") ;;
   "")   SERVER=("$LLAMA_BIN" serve) ;;
   *)    SERVER=("$IA_SERVER") ;;
 esac
@@ -231,7 +242,9 @@ in_hf_cache() {  # $1 = patrón
   return 1
 }
 
-has_9b()     { in_hf_cache "$PAT_9B"; }
+has_9b()     { in_hf_cache "$PAT_9B" || [[ -d "$DEMO" ]]; }
+has_mellum()  { in_hf_cache "$PAT_MELLUM"; }
+has_inkling() { in_hf_cache "$PAT_INKLING"; }
 has_mimo()   { in_hf_cache "$PAT_MIMO"; }
 has_ocr()    { in_hf_cache "$PAT_OCR"; }
 has_mimo_mtp()      { in_hf_cache "$PAT_MIMO_MTP"; }
@@ -251,6 +264,7 @@ old_installed() {
     qwopus)        has_qwopus ;;
     ornith-dflash) has_ornith_dflash ;;
     dflash-qwen)   has_dflash_qwen ;;
+    bonsai)        has_9b ;;
     lfm3-audio)    has_lfm3a ;;
     qwen3-tts)     has_qwen3tts ;;
     *) return 1 ;;
@@ -264,16 +278,17 @@ mark() {  # $1 = función de comprobación, $2 = tamaño aproximado de descarga
 list_installed() {
   echo "Modelos:"
   echo "  ornith  $(mark has_ornith '6,7 GB')   $(fmt_tags ornith)"
-  echo "  9b      $(mark has_9b '3,5 GB')   $(fmt_tags 9b) · con «ia hermes»: $(fmt_tags hermes)"
   echo "  ocr     $(mark has_ocr '0,9 GB')   $(fmt_tags ocr)"
   echo "  voice   $(mark has_voice '1,2 GB')   $(fmt_tags voice) · referencia: $VOICE_REF"
   echo
   echo "En pruebas:"
+  echo "  mellum  $(mark has_mellum '8,3 GB')   $(fmt_tags mellum)"
+  echo "  inkling $(mark has_inkling '9,1 GB + 0,6 GB visión')   $(fmt_tags inkling)"
   echo "  embla   $(mark has_embla '5,6 GB + compilar el motor')   $(fmt_tags embla)"
   echo
   # Descartados en ia-bench (9 nov 2026): solo salen si siguen en disco, para borrarlos con ia rm
   local old="" id
-  for id in mimo mimo-mtp qwopus ornith-dflash dflash-qwen lfm3-audio qwen3-tts; do
+  for id in bonsai mimo mimo-mtp qwopus ornith-dflash dflash-qwen lfm3-audio qwen3-tts; do
     if old_installed "$id"; then old="$old $id"; fi
   done
   if [[ -n "$old" ]]; then
@@ -369,7 +384,9 @@ delete_model() {  # $1 = mimo|9b|ocr
   local label
   case "$1" in
     mimo)   label="MiMo-V2.6 9B";  collect_cache "$PAT_MIMO" ;;
-    9b)     label="Bonsai 2 9B";   collect_cache "$PAT_9B" ;;
+    bonsai|9b|hermes) label="Bonsai 2 9B y el fork de Prism (~/models/Bonsai-demo)"; collect_cache "$PAT_9B"; add_if_exists "$DEMO" ;;
+    mellum)        label="Mellum2.1 12B";                   collect_cache "$PAT_MELLUM" ;;
+    inkling)       label="Inkling 2 Mini (y su borrador)";  collect_cache "$PAT_INKLING" ;;
     ocr)    label="Xiaomi-OCR-0";  collect_cache "$PAT_OCR" ;;
     mimo-mtp)      label="MiMo con MTP (VitreousCut)";      collect_cache "$PAT_MIMO_MTP" ;;
     dflash-qwen)   label="borrador DFlash de Qwen3.5-9B";   collect_cache "$PAT_DFLASH_QWEN" ;;
@@ -380,7 +397,7 @@ delete_model() {  # $1 = mimo|9b|ocr
     voice|voz)     label="Chatterbox (voz; la referencia de ~/models/voices se conserva)"; collect_cache "$PAT_VOICE" ;;
     lfm3-audio)    label="LFM3-Audio 2B (voz descartada)";   collect_cache "$PAT_LFM3A" ;;
     qwen3-tts)     label="Qwen3-TTS 1.7B (voz descartada)";  collect_cache "$PAT_QWEN3TTS" ;;
-    *) echo "Uso: ia rm [mimo|mimo-mtp|dflash-qwen|9b|ocr|ornith|ornith-dflash|qwopus|voice|lfm3-audio|qwen3-tts]"; exit 1 ;;
+    *) echo "Uso: ia rm [ornith|mellum|inkling|ocr|voice|bonsai|mimo|mimo-mtp|dflash-qwen|ornith-dflash|qwopus|lfm3-audio|qwen3-tts]"; exit 1 ;;
   esac
 
   if [[ ${#TARGETS[@]} -eq 0 ]]; then
@@ -403,7 +420,7 @@ delete_model() {  # $1 = mimo|9b|ocr
 delete_menu() {
   echo "¿Qué modelo borro?"
   has_mimo   && echo "  1) MiMo-V2.6 9B"
-  has_9b     && echo "  2) Bonsai 2 9B"
+  has_9b     && echo "  2) Bonsai 2 9B y fork de Prism (descartado)"
   has_ocr    && echo "  3) Xiaomi-OCR-0"
   has_ornith && echo "  4) Ornith-1.5 9B"
   has_qwopus && echo "  5) Qwopus3.5 9B Coder Flash"
@@ -413,11 +430,13 @@ delete_menu() {
   has_voice && echo "  9) Chatterbox (voz)"
   has_lfm3a && echo "  10) LFM3-Audio 2B (voz descartada)"
   has_qwen3tts && echo "  11) Qwen3-TTS 1.7B (voz descartada)"
+  has_mellum && echo "  12) Mellum2.1 12B"
+  has_inkling && echo "  13) Inkling 2 Mini"
   echo "  q) Volver"
   read -r -p "> " opt
   case "$opt" in
     1) delete_model mimo ;;
-    2) delete_model 9b ;;
+    2) delete_model bonsai ;;
     3) delete_model ocr ;;
     4) delete_model ornith ;;
     5) delete_model qwopus ;;
@@ -427,6 +446,8 @@ delete_menu() {
     9) delete_model voice ;;
     10) delete_model lfm3-audio ;;
     11) delete_model qwen3-tts ;;
+    12) delete_model mellum ;;
+    13) delete_model inkling ;;
     *) exit 0 ;;
   esac
 }
@@ -439,12 +460,12 @@ SPEC_LABEL=""
 check_spec() {  # $1 = tipo de --spec-type
   if ! "${SERVER[@]}" --help 2>&1 | grep -q -- "$1"; then
     echo "✗ Este servidor no conoce --spec-type $1."
-    echo "  Actualiza llama.cpp (llama update) o prueba con IA_SERVER=fork."
+    echo "  Actualiza llama.cpp (llama update)."
     exit 1
   fi
 }
 
-spec_args() {  # $1 = modo (vacío|none|mtp|dflash|ngram), $2 = repo del borrador DFlash, $3 = modos válidos
+spec_args() {  # $1 = modo (vacío|none|mtp|dflash|dspark|ngram), $2 = repo del borrador, $3 = modos válidos
   SPEC=(); SPEC_LABEL=""
   local mode="$1" draft="$2" ok=" $3 "
   case "$mode" in ""|none) return 0 ;; esac
@@ -461,6 +482,10 @@ spec_args() {  # $1 = modo (vacío|none|mtp|dflash|ngram), $2 = repo del borrado
       check_spec draft-dflash
       SPEC=(-hfd "$draft" --spec-type draft-dflash --spec-draft-n-max "${IA_SPEC_N:-8}")
       SPEC_LABEL="DFlash (n=${IA_SPEC_N:-8})" ;;
+    dspark)
+      check_spec draft-dspark
+      SPEC=(-hfd "$draft" --spec-type draft-dspark --spec-draft-n-max "${IA_SPEC_N:-8}")
+      SPEC_LABEL="DSpark (n=${IA_SPEC_N:-8})" ;;
     ngram)
       check_spec ngram-mod
       SPEC=(--spec-type ngram-mod)
@@ -495,7 +520,7 @@ serve() {
   if [[ -n "$SPEC_LABEL" ]]; then label="$label · $SPEC_LABEL"; fi
   banner "$label · caché KV $kv"
   exec "${SERVER[@]}" -hf "$repo" ${args[@]+"${args[@]}"} ${SPEC[@]+"${SPEC[@]}"} "$@" \
-    -c "$CTX" -np 1 --port "$PORT" --jinja \
+    -c "$CTX" -np 1 --port "$PORT" --jinja --alias local \
     -fa on --cache-type-k "$kv" --cache-type-v "$kv"
 }
 
@@ -518,6 +543,34 @@ run_ornith() {
   fi
   serve "Ornith-1.5 9B" "$ORNITH_REPO" "$mode" \
     "$ORNITH_DFLASH_REPO" "mtp dflash ngram" "${SAMPLING_CODE[@]}"
+}
+
+run_mellum() {
+  # Mellum2.1 Thinking (JetBrains, Apache 2.0): MoE 12B, 2,5B active, trained for agentic coding.
+  # One file holds Q4_K_M and the MTP head (8,3 GB), so `base` reuses it without the head.
+  # No vision. Sampling from the model card. In testing since 23 nov 2026.
+  CUR_ID=mellum
+  local mode="${1:-${IA_SPEC:-mtp}}"
+  if [[ "$mode" == "base" ]]; then mode=none; fi
+  IA_THINK="${IA_THINK:-2048}"
+  IA_NOVISION=1
+  has_mellum || echo "↓ Primera vez: descargando Mellum2.1 12B con MTP (~8,3 GB)…"
+  serve "Mellum2.1 12B" "$MELLUM_REPO" "$mode" "" "mtp" \
+    -hff "$MELLUM_FILE" "${SAMPLING_CODE[@]}"
+}
+
+run_inkling() {
+  # Inkling 2 Mini (Thinking Machines, Apache 2.0): looped MoE, 26,4B total, 3,4B active
+  # (~5,4B effective). The lab asks for 32 GB; here only unsloth's UD-Q2_K_XL fits (9,1 GB).
+  # Vision off by default to save 0,6 GB (IA_VISION=1 turns it on). Optional DSpark draft.
+  # In testing since 23 nov 2026.
+  CUR_ID=inkling
+  local mode="${1:-${IA_SPEC:-none}}"
+  if [[ "$mode" == "base" ]]; then mode=none; fi
+  IA_THINK="${IA_THINK:-2048}"
+  if [[ -z "${IA_VISION:-}" ]]; then IA_NOVISION=1; fi
+  has_inkling || echo "↓ Primera vez: descargando Inkling 2 Mini Q2 (~9,1 GB, +0,6 GB con visión)…"
+  serve "Inkling 2 Mini (Q2)" "$INKLING_REPO" "$mode" "$INKLING_DSPARK_REPO" "dspark"
 }
 
 run_embla() {
@@ -552,32 +605,6 @@ run_embla() {
   exec "$bin" serve --port "$PORT" --context "$CTX"
 }
 
-run_hermes() {
-  CUR_ID=hermes
-  need "$FORK_SERVER"
-  has_9b || echo "↓ Primera vez: descargando Bonsai 2 9B (~3,5 GB)…"
-  CTX="${IA_CTX:-65536}"   # Hermes exige al menos 64K
-  local kv="${IA_KV:-q8_0}"
-  if (( CTX < 64000 )); then
-    echo "⚠️  Contexto $CTX: Hermes pide al menos 64000 y no arrancará."
-  fi
-  stop_text; check_memory
-  banner "Bonsai 2 9B · modo agente (Hermes) · caché KV $kv"
-  exec "$FORK_SERVER" -hf "$B9_REPO" \
-    -c "$CTX" -np 1 --port "$PORT" \
-    -fa on --cache-type-k "$kv" --cache-type-v "$kv" \
-    --jinja
-}
-
-run_9b() {
-  CUR_ID=9b
-  need "$FORK_SERVER"
-  has_9b || echo "↓ Primera vez: descargando Bonsai 2 9B (~3,5 GB)…"
-  stop_text; check_memory
-  banner "Bonsai 2 9B"
-  exec "$FORK_SERVER" -hf "$B9_REPO" -c "$CTX" -np 1 --port "$PORT"
-}
-
 run_ocr() {
   # Xiaomi-OCR-0 (0,8B, Apache 2.0). Q6_K + visión (~0,9 GB).
   # Prompt recomendado: "Extract all information from the main body of the document
@@ -588,7 +615,7 @@ run_ocr() {
   CTX="${IA_CTX:-16384}"
   stop_text; check_memory
   banner "Xiaomi-OCR-0 · documentos a Markdown"
-  exec "$LLAMA_BIN" serve -hf "$OCR_REPO" -c "$CTX" -np 1 --port "$PORT" -fa on --jinja \
+  exec "$LLAMA_BIN" serve -hf "$OCR_REPO" -c "$CTX" -np 1 --port "$PORT" -fa on --jinja --alias local \
     --chat-template-kwargs '{"enable_thinking":false}'
 }
 
@@ -663,11 +690,38 @@ voice_request() {  # $1 = text, $2 = output wav
   fi
 }
 
-say_text() {  # ia say "text"  ·  pbpaste | ia say
+resolve_voice() {  # $1 = name in ~/models/voices or a path to an audio file
+  local v="$1" d="$MODELS/voices" ext
+  if [[ -f "$v" ]]; then echo "$v"; return 0; fi
+  for ext in wav mp3 flac m4a; do
+    if [[ -f "$d/$v.$ext" ]]; then echo "$d/$v.$ext"; return 0; fi
+  done
+  echo "✗ No encuentro la voz «${v}» (ni como archivo ni en ${d}). Mira: ia voice list" >&2
+  return 1
+}
+
+list_voices() {
+  local d="$MODELS/voices" f found=""
+  echo "Voces de referencia en $d (por defecto: $(basename "$VOICE_REF")):"
+  for f in "$d"/*.wav "$d"/*.mp3 "$d"/*.flac "$d"/*.m4a; do
+    [[ -f "$f" ]] || continue
+    found=1
+    echo "  $(basename "${f%.*}")"
+  done
+  [[ -n "$found" ]] || echo "  (ninguna)"
+  echo "Úsalas con: ia say -v <nombre> \"texto\". Para añadir una, copia un .wav de 10-20 s ahí."
+}
+
+say_text() {  # ia say [-v voice] "text"  ·  pbpaste | ia say [-v voice]
   local text tmp chunk i=0 player=""
+  if [[ "${1:-}" == "-v" || "${1:-}" == "--voice" ]]; then
+    [[ -n "${2:-}" ]] || { echo "Uso: ia say -v <voz> \"texto\""; exit 1; }
+    VOICE_REF="$(resolve_voice "$2")" || exit 1
+    shift 2
+  fi
   if [[ $# -gt 0 ]]; then text="$*"; elif [[ ! -t 0 ]]; then text="$(cat)"; else text=""; fi
   if [[ -z "${text//[[:space:]]/}" ]]; then
-    echo "Uso: ia say \"texto\"   (o: pbpaste | ia say)"
+    echo "Uso: ia say [-v voz] \"texto\"   (o: pbpaste | ia say)"
     exit 1
   fi
   ensure_voice
@@ -701,10 +755,12 @@ say_text() {  # ia say "text"  ·  pbpaste | ia say
 menu() {
   echo "¿Qué hago?"
   echo "  1) Ornith-1.5 9B   $(mark has_ornith '6,7 GB')   $(fmt_tags ornith)"
-  echo "  2) Bonsai 2 9B     $(mark has_9b '3,5 GB')   $(fmt_tags hermes) (modo Hermes, 64K)"
-  echo "  3) Xiaomi-OCR      $(mark has_ocr '0,9 GB')   $(fmt_tags ocr)"
-  echo "  4) Embla 1         $(mark has_embla '5,6 GB')   $(fmt_tags embla) (en pruebas)"
-  echo "  5) Voz (Chatterbox) $(mark has_voice '1,2 GB')   $(fmt_tags voice) (puerto $VOICE_PORT)"
+  echo "  2) Xiaomi-OCR      $(mark has_ocr '0,9 GB')   $(fmt_tags ocr)"
+  echo "  3) Voz (Chatterbox) $(mark has_voice '1,2 GB')   $(fmt_tags voice) (puerto $VOICE_PORT)"
+  echo "  En pruebas:"
+  echo "  4) Mellum2.1 12B   $(mark has_mellum '8,3 GB')   $(fmt_tags mellum)"
+  echo "  5) Inkling 2 Mini  $(mark has_inkling '9,1 GB')   $(fmt_tags inkling)"
+  echo "  6) Embla 1         $(mark has_embla '5,6 GB')   $(fmt_tags embla)"
   echo "  t) ¿Qué uso para…? (modelos por etiqueta)"
   echo "  l) Ver instalados y espacio ocupado"
   echo "  b) Borrar un modelo"
@@ -713,10 +769,11 @@ menu() {
   read -r -p "> " opt
   case "$opt" in
     1) run_ornith ;;
-    2) run_hermes ;;
-    3) run_ocr ;;
-    4) run_embla ;;
-    5) run_voice ;;
+    2) run_ocr ;;
+    3) run_voice ;;
+    4) run_mellum ;;
+    5) run_inkling ;;
+    6) run_embla ;;
     t|T) by_tag ;;
     l|L) list_installed ;;
     b|B) delete_menu ;;
@@ -727,17 +784,18 @@ menu() {
 
 case "${1:-}" in
   ornith)        run_ornith "${2:-}" ;;
+  mellum)        run_mellum "${2:-}" ;;
+  inkling)       run_inkling "${2:-}" ;;
   embla)         run_embla ;;
-  voice|voz)     if [[ "${2:-}" == "stop" ]]; then stop_voice; echo "Listo."; else run_voice; fi ;;
+  voice|voz)     case "${2:-}" in stop) stop_voice; echo "Listo." ;; list) list_voices ;; *) run_voice ;; esac ;;
   say)           shift; say_text ${@+"$@"} ;;
   mimo|qwopus)   echo "«$1» se descartó en ia-bench (9 nov 2026); usa «ia ornith». Para borrarlo: ia rm $1"; exit 1 ;;
-  hermes|agent)  run_hermes ;;
-  9b)            run_9b ;;
+  hermes|agent|9b) echo "Bonsai (ia $1) se quitó el 23 nov 2026; usa «ia ornith». Para borrarlo del disco: ia rm bonsai"; exit 1 ;;
   ocr|ocrx)      run_ocr ;;
   tags|tag|for)  by_tag "${2:-}" ;;
   list)          list_installed ;;
   rm)            delete_model "${2:-}" ;;
   stop)          stop_all; echo "Listo." ;;
   "")            menu ;;
-  *)             echo "Uso: ia [ornith [base|dflash|ngram]|hermes|9b|ocr|voice [stop]|say \"texto\"|tags [tag]|list|rm <modelo>|stop]"; exit 1 ;;
+  *)             echo "Uso: ia [ornith [base|dflash|ngram]|mellum [base]|inkling [dspark]|ocr|voice [stop|list]|say [-v voz] \"texto\"|tags [tag]|list|rm <modelo>|stop]"; exit 1 ;;
 esac

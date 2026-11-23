@@ -58,14 +58,20 @@ MODELOS = [
      "ia": ["ornith", "dflash"], "pruebas": ["velocidad"], "base": "ornith-base", "lista": "ornith"},
     {"nombre": "ornith-ngram", "descripcion": "Ornith + ngram-mod",
      "ia": ["ornith", "ngram"], "pruebas": ["velocidad"], "base": "ornith-base", "lista": "ornith"},
-    {"nombre": "hermes", "descripcion": "Bonsai 2 9B, modo agente (fork de Prism, 64K)",
-     "ia": ["hermes"], "pruebas": ["texto"], "lista": "9b", "defecto": True},
+    {"nombre": "mellum", "descripcion": "Mellum2.1 12B-A2.5B (MTP, pensar ≤ 2048)",
+     "ia": ["mellum"], "pruebas": ["texto"], "base": "mellum-base", "lista": "mellum"},
+    {"nombre": "mellum-base", "descripcion": "Mellum2.1 12B-A2.5B sin MTP",
+     "ia": ["mellum", "base"], "pruebas": ["velocidad"], "lista": "mellum"},
+    {"nombre": "inkling", "descripcion": "Inkling 2 Mini 26B-A3.4B (UD-Q2_K_XL, pensar ≤ 2048)",
+     "ia": ["inkling"], "pruebas": ["texto"], "lista": "inkling"},
+    {"nombre": "inkling-dspark", "descripcion": "Inkling 2 Mini + borrador DSpark",
+     "ia": ["inkling", "dspark"], "pruebas": ["velocidad"], "base": "inkling", "lista": "inkling"},
     {"nombre": "ocr", "descripcion": "Xiaomi-OCR-0 (0,8B)",
      "ia": ["ocr"], "pruebas": ["doc"], "lista": "ocr", "defecto": True},
     {"nombre": "embla", "descripcion": "Embla 1 (MoE 10B, 1B activo)",
      "ia": ["embla"], "pruebas": ["texto"], "lista": "embla"},
 ]
-TAMANOS = {"ornith": 6.7, "9b": 3.5, "ocr": 0.9, "embla": 5.6}  # GB to download, by `ia list` id
+TAMANOS = {"ornith": 6.7, "mellum": 8.3, "inkling": 9.5, "ocr": 0.9, "embla": 5.6}  # GB to download, by `ia list` id
 
 # Server processes that `ia` can start (pgrep/pkill -f take an extended regex)
 PATRON_SERVIDOR = os.environ.get("IA_BENCH_PATRON", "llama-server|llama serve|embla serve")

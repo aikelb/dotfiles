@@ -2,8 +2,8 @@
   "$schema": "https://opencode.ai/config.json",
   // Models and providers. Credentials are managed by `opencode connect`.
   "model": "openai/gpt-6-luna",
-  // Local title generation via `ia` (start with: `ia ornith`).
-  "small_model": "local/ornith",
+  // Local title generation with whatever `ia` is serving on :8080 (e.g. `ia ornith`).
+  "small_model": "local/local",
   // Block legacy/direct providers; use the configured alternatives below.
   "policies": [
     {
@@ -207,9 +207,10 @@
         "baseURL": "http://127.0.0.1:8080/v1"
       },
       "models": {
-        // Model ID must match the name exposed by the local llama.cpp server.
-        "ornith": {
-          "name": "Ornith-1.5 9B (local)",
+        // One entry for any model: `ia` always serves the loaded model as "local" (--alias local),
+        // so this talks to whatever is running (ornith, mellum, inkling…).
+        "local": {
+          "name": "Local (el modelo que esté en marcha con ia)",
           "limit": {
             "context": 65536,
             "output": 16384
