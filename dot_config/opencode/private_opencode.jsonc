@@ -38,28 +38,28 @@
           }
         },
         "xiaomi/mimo-v2.6-flash": {
-          "name": "MiMo V2.6 Flash (ZDR pending)",
+          "name": "MiMo V2.6 Flash",
           "limit": {
             "context": 131072,
             "output": 32768
           }
         },
         "minimax/minimax-m3.1-flash": {
-          "name": "MiniMax M3.1 Flash (ZDR pending)",
+          "name": "MiniMax M3.1 Flash",
           "limit": {
             "context": 131072,
             "output": 32768
           }
         },
         "tencent/hy4-flash": {
-          "name": "Hy4 Flash (ZDR pending)",
+          "name": "Hy4 Flash",
           "limit": {
             "context": 131072,
             "output": 32768
           }
         },
         "tencent/hy4-preview": {
-          "name": "Hy4 Preview (ZDR pending)",
+          "name": "Hy4 Preview",
           "limit": {
             "context": 131072,
             "output": 32768
