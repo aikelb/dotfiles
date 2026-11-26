@@ -114,8 +114,10 @@ Notes (opencode v2.3.0):
   (`herdr agent send-keys <name> shift+tab`): it cannot edit files. Plan keeps
   its own model setting, so pick the model again after switching.
 - Worker tool calls are in `~/.local/share/opencode/opencode.db`
-  (table `session_message`, rows of type `assistant`, tool inputs in
-  `content[].state.input`; the `part` table may be empty). Audit them
+  (table `session_part`, one row per tool call, input in `data` →
+  `state.input`; `session_message.content` is empty on opencode 2.4).
+  Example: `sqlite3 -readonly <db> "select data from session_part where
+  session_id='<ses_…>'"`. Audit them
   read-only with `sqlite3 -readonly` against the grant; get the session ID
   with `herdr agent get <name>`.
 
