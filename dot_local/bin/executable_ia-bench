@@ -2,7 +2,10 @@
 # ia-bench — compara los modelos del lanzador `ia` en este Mac.
 #
 # Lanza cada modelo con `ia <modelo>`, le pasa las mismas pruebas y guarda
-# respuestas, velocidad y puntuaciones en ~/models/bench/resultados/<fecha>/.
+# respuestas, velocidad y puntuaciones en <salida>/<fecha>/. La salida es $IA_BENCH_OUT si
+# existe; si no, ~/git/ops/inventory/modelos/bench (carpeta sin versionar de ops) cuando hay
+# un clon de ops, y si tampoco, ~/models/bench/resultados. Las páginas de prueba siguen en
+# ~/models/bench/test.
 #
 # Uso:
 #   ia-bench                          → los modelos principales (descarga los que falten)
@@ -44,6 +47,18 @@ import urllib.request
 HOME = os.path.expanduser("~")
 BENCH = os.path.join(HOME, "models", "bench")
 TEST_DIR = os.path.join(BENCH, "test")
+OPS = os.path.join(HOME, "git", "ops")
+
+
+def results_root():
+    # Results live next to the review workflow (ops, git-ignored) so one folder is enough to evaluate them.
+    out = os.environ.get("IA_BENCH_OUT")
+    if out:
+        return os.path.expanduser(out)
+    if os.path.isdir(os.path.join(OPS, ".git")):
+        return os.path.join(OPS, "inventory", "modelos", "bench")
+    return os.path.join(BENCH, "resultados")
+
 PORT = int(os.environ.get("IA_PORT", "8080"))
 BASE = "http://127.0.0.1:%d" % PORT
 IA = os.environ.get("IA_BIN") or shutil.which("ia") or os.path.join(HOME, ".local", "bin", "ia")
@@ -53,8 +68,6 @@ IA = os.environ.get("IA_BIN") or shutil.which("ia") or os.path.join(HOME, ".loca
 MODELOS = [
     {"nombre": "mellum", "descripcion": "Mellum2.1 12B-A2.5B (pensar ≤ 4096)",
      "ia": ["mellum"], "pruebas": ["texto"], "lista": "mellum", "defecto": True},
-    {"nombre": "mellum-fast", "descripcion": "Mellum2.1 12B-A2.5B Instruct (sin pensar)",
-     "ia": ["mellum", "fast"], "pruebas": ["texto"], "lista": "mellum-fast"},
     {"nombre": "mellum-mtp", "descripcion": "Mellum2.1 12B-A2.5B con MTP",
      "ia": ["mellum", "mtp"], "pruebas": ["velocidad"], "base": "mellum", "lista": "mellum"},
     {"nombre": "ocr", "descripcion": "Xiaomi-OCR-0 (0,8B)",
@@ -62,7 +75,7 @@ MODELOS = [
     {"nombre": "embla", "descripcion": "Embla 1 (MoE 10B, 1B activo)",
      "ia": ["embla"], "pruebas": ["texto"], "lista": "embla"},
 ]
-TAMANOS = {"mellum": 8.1, "mellum-fast": 7.9, "ocr": 0.9, "embla": 5.6}  # GB to download, by `ia list` id
+TAMANOS = {"mellum": 8.1, "ocr": 0.9, "embla": 5.6}  # GB to download, by `ia list` id
 
 # Server processes that `ia` can start (pgrep/pkill -f take an extended regex)
 PATRON_SERVIDOR = os.environ.get("IA_BENCH_PATRON", "llama-server|llama serve|embla serve")
@@ -585,7 +598,7 @@ def main():
     elegidos = [m for m in MODELOS if (m["nombre"] in args) if args] or \
                [m for m in MODELOS if not args and m.get("defecto")]
 
-    salida = os.path.join(BENCH, "resultados", datetime.datetime.now().strftime("%Y-%m-%d_%H%M"))
+    salida = os.path.join(results_root(), datetime.datetime.now().strftime("%Y-%m-%d_%H%M"))
     os.makedirs(salida, exist_ok=True)
     resumen = {"fecha": datetime.datetime.now().isoformat(timespec="seconds"),
                "llama_cpp": version_llama(), "rapido": rapido, "max_tokens": max_tok,
