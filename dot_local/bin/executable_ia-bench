@@ -53,6 +53,8 @@ IA = os.environ.get("IA_BIN") or shutil.which("ia") or os.path.join(HOME, ".loca
 MODELOS = [
     {"nombre": "mellum", "descripcion": "Mellum2.1 12B-A2.5B (pensar ≤ 4096)",
      "ia": ["mellum"], "pruebas": ["texto"], "lista": "mellum", "defecto": True},
+    {"nombre": "mellum-fast", "descripcion": "Mellum2.1 12B-A2.5B Instruct (sin pensar)",
+     "ia": ["mellum", "fast"], "pruebas": ["texto"], "lista": "mellum-fast"},
     {"nombre": "mellum-mtp", "descripcion": "Mellum2.1 12B-A2.5B con MTP",
      "ia": ["mellum", "mtp"], "pruebas": ["velocidad"], "base": "mellum", "lista": "mellum"},
     {"nombre": "ocr", "descripcion": "Xiaomi-OCR-0 (0,8B)",
@@ -60,7 +62,7 @@ MODELOS = [
     {"nombre": "embla", "descripcion": "Embla 1 (MoE 10B, 1B activo)",
      "ia": ["embla"], "pruebas": ["texto"], "lista": "embla"},
 ]
-TAMANOS = {"mellum": 8.1, "ocr": 0.9, "embla": 5.6}  # GB to download, by `ia list` id
+TAMANOS = {"mellum": 8.1, "mellum-fast": 7.9, "ocr": 0.9, "embla": 5.6}  # GB to download, by `ia list` id
 
 # Server processes that `ia` can start (pgrep/pkill -f take an extended regex)
 PATRON_SERVIDOR = os.environ.get("IA_BENCH_PATRON", "llama-server|llama serve|embla serve")
