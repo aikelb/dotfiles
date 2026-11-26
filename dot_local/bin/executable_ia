@@ -9,6 +9,9 @@
 #                     activos: código y agentes (OpenCode), ~30-40 tok/s, mejor en inglés que en
 #                     español. Sin visión. Piensa como mucho 4096 tokens. ia mellum mtp → con MTP
 #                     (no fue más rápido en ia-bench).
+#   ia mellum fast  → Mellum2.1 Instruct (en pruebas desde el 26 nov 2026): la misma arquitectura,
+#                     pero responde sin pensar antes. Más floja en las cifras, mucho más rápida
+#                     en dar cada respuesta. Para el día a día en OpenCode y tareas cortas.
 #   ia ocr          → Xiaomi-OCR-0: pasar documentos a texto/Markdown, muy rápido
 #   ia embla        → Embla 1 (en pruebas): MoE de 10B con 1B activo, muy rápido; solo chat (256K)
 #                     (su motor no admite herramientas ni imágenes). La primera vez clona y
@@ -26,11 +29,11 @@
 #                     (code · agent · chat · vision · docs · ocr · voice)
 #   ia list         → ver qué está instalado y cuánto ocupa
 #   ia rm <modelo>  → borrar un modelo o borrador, pide confirmación
-#                     (mellum|ocr|voice|embla, y los descartados: ornith|inkling|bonsai|mimo|
+#                     (mellum|mellum-fast|ocr|voice|embla, y los descartados: ornith|inkling|bonsai|mimo|
 #                     mimo-mtp|qwopus|ornith-dflash|dflash-qwen|lfm3-audio|qwen3-tts)
 #   ia stop         → parar todo lo que esté corriendo (también la voz)
 #
-# Modelos descartados (para la revisión de modelos, ver ~/models/PROMPT-revision-modelos.md):
+# Modelos descartados (para la revisión de modelos, ver ~/git/ops/docs/revision-modelos.md):
 #   Ornith-1.5 9B (23 nov 2026): bueno, pero pesado y lento para OpenCode (~15 tok/s).
 #   Inkling 2 Mini (23 nov 2026): solo cabe en Q2 y va a ~1,7 tok/s (pide 32 GB).
 #
@@ -77,6 +80,8 @@ PAT_QWOPUS="Qwopus3-5-9B-Coder-Flash"
 QWOPUS_REPO="Jackrong/Qwopus3-5-9B-Coder-Flash-GGUF:Q4_K_M"            # Apache 2.0, trae MTP
 
 # Testing (23 nov 2026): faster models for OpenCode
+PAT_MELLUM_FAST="Mellum2.1-12B-A2.5B-Instruct"
+MELLUM_FAST_REPO="bartowski/Mellum2.1-12B-A2.5B-Instruct-GGUF:Q4_K_S"     # Apache 2.0, 7,9 GB, no thinking
 PAT_MELLUM="Mellum2.1-12B-A2.5B-Thinking"   # matches both repos, so ia rm also clears the old download
 # bartowski's single-file build (Q4_K_S + MTP head, 8,1 GB). The official JetBrains repo also ships a
 # separate BF16 head (mtp-*.gguf) that llama.cpp fetches and loads on top (+1,8 GB), so it is avoided.
@@ -236,6 +241,7 @@ in_hf_cache() {  # $1 = patrón
 
 has_9b()     { in_hf_cache "$PAT_9B" || [[ -d "$DEMO" ]]; }
 has_mellum()  { in_hf_cache "$PAT_MELLUM"; }
+has_mellum_fast() { in_hf_cache "$PAT_MELLUM_FAST"; }
 has_inkling() { [[ -f "$INKLING_DIR/$INKLING_FILE" ]]; }
 has_mimo()   { in_hf_cache "$PAT_MIMO"; }
 has_ocr()    { in_hf_cache "$PAT_OCR"; }
@@ -272,6 +278,7 @@ mark() {  # $1 = función de comprobación, $2 = tamaño aproximado de descarga
 list_installed() {
   echo "Modelos:"
   echo "  mellum  $(mark has_mellum '8,1 GB')   $(fmt_tags mellum)"
+  echo "  mellum-fast $(mark has_mellum_fast '7,9 GB')   $(fmt_tags mellum) · sin pensar, en pruebas"
   echo "  ocr     $(mark has_ocr '0,9 GB')   $(fmt_tags ocr)"
   echo "  voice   $(mark has_voice '1,2 GB')   $(fmt_tags voice) · referencia: $VOICE_REF"
   echo
@@ -377,7 +384,8 @@ delete_model() {  # $1 = mimo|9b|ocr
   case "$1" in
     mimo)   label="MiMo-V2.6 9B";  collect_cache "$PAT_MIMO" ;;
     bonsai|9b|hermes) label="Bonsai 2 9B y el fork de Prism (~/models/Bonsai-demo)"; collect_cache "$PAT_9B"; add_if_exists "$DEMO" ;;
-    mellum)        label="Mellum2.1 12B";                   collect_cache "$PAT_MELLUM" ;;
+    mellum)        label="Mellum2.1 12B Thinking";          collect_cache "$PAT_MELLUM" ;;
+    mellum-fast)   label="Mellum2.1 12B Instruct";          collect_cache "$PAT_MELLUM_FAST" ;;
     inkling)       label="Inkling 2 Mini (y su borrador)";  collect_cache "$PAT_INKLING"; add_if_exists "$INKLING_DIR" "$MODELS/drafts" ;;
     ocr)    label="Xiaomi-OCR-0";  collect_cache "$PAT_OCR" ;;
     mimo-mtp)      label="MiMo con MTP (VitreousCut)";      collect_cache "$PAT_MIMO_MTP" ;;
@@ -389,7 +397,7 @@ delete_model() {  # $1 = mimo|9b|ocr
     voice|voz)     label="Chatterbox (voz; la referencia de ~/models/voices se conserva)"; collect_cache "$PAT_VOICE" ;;
     lfm3-audio)    label="LFM3-Audio 2B (voz descartada)";   collect_cache "$PAT_LFM3A" ;;
     qwen3-tts)     label="Qwen3-TTS 1.7B (voz descartada)";  collect_cache "$PAT_QWEN3TTS" ;;
-    *) echo "Uso: ia rm [mellum|ocr|voice|ornith|inkling|bonsai|mimo|mimo-mtp|dflash-qwen|ornith-dflash|qwopus|lfm3-audio|qwen3-tts]"; exit 1 ;;
+    *) echo "Uso: ia rm [mellum|mellum-fast|ocr|voice|ornith|inkling|bonsai|mimo|mimo-mtp|dflash-qwen|ornith-dflash|qwopus|lfm3-audio|qwen3-tts]"; exit 1 ;;
   esac
 
   if [[ ${#TARGETS[@]} -eq 0 ]]; then
@@ -529,6 +537,12 @@ run_mellum() {
   # With 2048 thinking tokens one code attempt ran out of budget, hence 4096.
   CUR_ID=mellum
   local mode="${1:-${IA_SPEC:-none}}"
+  if [[ "$mode" == "fast" ]]; then
+    # Mellum2.1 Instruct: same architecture, answers without a chain of thought (no reasoning budget).
+    IA_NOVISION=1
+    has_mellum_fast || echo "↓ Primera vez: descargando Mellum2.1 12B Instruct (~7,9 GB)…"
+    serve "Mellum2.1 12B Instruct (fast)" "$MELLUM_FAST_REPO" none "" "" "${SAMPLING_CODE[@]}"
+  fi
   if [[ "$mode" == "base" ]]; then mode=none; fi
   IA_THINK="${IA_THINK:-4096}"
   IA_NOVISION=1
@@ -721,7 +735,8 @@ menu() {
   echo "  2) Xiaomi-OCR      $(mark has_ocr '0,9 GB')   $(fmt_tags ocr)"
   echo "  3) Voz (Chatterbox) $(mark has_voice '1,2 GB')   $(fmt_tags voice) (puerto $VOICE_PORT)"
   echo "  En pruebas:"
-  echo "  4) Embla 1         $(mark has_embla '5,6 GB')   $(fmt_tags embla)"
+  echo "  4) Mellum fast     $(mark has_mellum_fast '7,9 GB')   $(fmt_tags mellum) (sin pensar)"
+  echo "  5) Embla 1         $(mark has_embla '5,6 GB')   $(fmt_tags embla)"
   echo "  t) ¿Qué uso para…? (modelos por etiqueta)"
   echo "  l) Ver instalados y espacio ocupado"
   echo "  b) Borrar un modelo"
@@ -732,7 +747,8 @@ menu() {
     1) run_mellum ;;
     2) run_ocr ;;
     3) run_voice ;;
-    4) run_embla ;;
+    4) run_mellum fast ;;
+    5) run_embla ;;
     t|T) by_tag ;;
     l|L) list_installed ;;
     b|B) delete_menu ;;
@@ -755,5 +771,5 @@ case "${1:-}" in
   rm)            delete_model "${2:-}" ;;
   stop)          stop_all; echo "Listo." ;;
   "")            menu ;;
-  *)             echo "Uso: ia [mellum [mtp]|ocr|voice [stop|list]|say [-v voz] \"texto\"|tags [tag]|list|rm <modelo>|stop]"; exit 1 ;;
+  *)             echo "Uso: ia [mellum [mtp|fast]|ocr|voice [stop|list]|say [-v voz] \"texto\"|tags [tag]|list|rm <modelo>|stop]"; exit 1 ;;
 esac
