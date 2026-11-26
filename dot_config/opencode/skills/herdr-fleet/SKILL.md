@@ -21,11 +21,21 @@ description: >
    - **Claude orchestrator sessions** may read and write the disk as needed
      for the task, under the normal Claude Code permission mode. No extra
      per-read confirmation is required by this skill.
-   - **Fleet workers** (OpenCode, codex, any non-Claude model) are untrusted:
-     we don't know what these models do, or how readily they try to work
-     around limits. Default is **no filesystem access** beyond their task
-     allowlist, as set by the **Sandbox Session** skill.
-2. **Grants to workers.** The Claude orchestrator may grant a worker access to
+   - **Command Code workers** (`commandcode/…`, and any other non-OpenAI,
+     non-Claude model) are untrusted: we don't know what these models do, or
+     how readily they try to work around limits. Default is **no filesystem
+     access** beyond their task allowlist, as set by the **Sandbox Session**
+     skill: exact paths, no shell, no search outside the grant (rule 2).
+   - **OpenAI workers** (`openai/gpt-6-luna` in OpenCode, codex) are trusted
+     more on the laptop (user decision, 20/11/2026). Inside the project repo
+     they may read, grep, glob and ls freely, except `.env*`, `*.pem` and
+     `*.key`; they write only in the folders named in the prompt; shell only
+     for checks (`bun run check`, `bun run test`, `go build`, `go vet`).
+     Never: git, task, docker, ssh, network, DB-backed tests, anything outside
+     the repo, their own config. State this grant in the prompt.
+   - Rules 3 (never auto-granted) and 4 (audit, stop on a step outside the
+     grant) apply to both.
+2. **Grants to Command Code workers.** The Claude orchestrator may grant a worker access to
    specific files/directories, only if:
    - the paths are exact (no `~`, no globs reaching outside the project, no
      parent dirs like `/Users/aike` or `~/git`);
@@ -74,7 +84,7 @@ description: >
 | Command Code **free** models (`commandcode-free/…`: Glyph Cluster, Flint, Inkling 2 Small) | Not zero-retention: prompts may be retained or used for training. Never a default, never a fallback (not for allowance-out, not when the plan window is hit). Only when the user explicitly allows them in this session or for this launch, and only for non-sensitive content (public code, generic questions, docs with no private data). Say in the dispatch report that a free model was used. |
 | Always, with Command Code | Never buy credits, turn on auto reload or remove the ZDR header. Never use Muse "Contributor" models (e.g. Muse Spark 1.3 Contributor): they train on request data. A `422 cmd_zdr_no_providers` means that model has no ZDR route: pick another, don't work around it. Any other model switch still follows the Dialog gate. |
 | Privacy-critical, no external egress | local/local (whatever model `ia` is serving) — only if the `ia` server (llama.cpp) is up on port 8080; verify before use |
-| ChatGPT Go: `openai/gpt-6-luna` in OpenCode, or codex | The user's own default, not zero-retention (training is off in ChatGPT). For workers only on explicit user request and only non-sensitive content; stop on usage-limit screens |
+| ChatGPT Go: `openai/gpt-6-luna` in OpenCode, or codex | Zero retention (confirmed by the user, 26/11/2026). May be used as a default worker for non-sensitive code, with the OpenAI grant from rule 1; stop on usage-limit screens |
 | `zai-org/GLM-5.3` and other `commandcode/` models not ranked above | Only when the user asks for them |
 | Claude | Never dispatch from this skill. Claude panes belong to the user |
 
@@ -104,8 +114,10 @@ Notes (opencode v2.3.0):
   (`herdr agent send-keys <name> shift+tab`): it cannot edit files. Plan keeps
   its own model setting, so pick the model again after switching.
 - Worker tool calls are in `~/.local/share/opencode/opencode.db`
-  (`session_message`, parts with `"type":"tool"`); audit them read-only
-  with `sqlite3 -readonly` against the grant.
+  (table `session_message`, rows of type `assistant`, tool inputs in
+  `content[].state.input`; the `part` table may be empty). Audit them
+  read-only with `sqlite3 -readonly` against the grant; get the session ID
+  with `herdr agent get <name>`.
 
 ### 2. Dispatch
 **One task, one OpenCode session.** Context is re-sent on every step and is what
@@ -138,8 +150,7 @@ was never done. Report what you saw, quoting the agent.
 
 ### 4. Codex notes
 If a codex pane shows a usage/credit limit banner, do not touch it: report the
-reset time shown and stop. (Current standing: ChatGPT Go is exhausted until
-Nov 26th, 2026 ~12:03 PM.)
+reset time shown and stop.
 
 ### 5. Escalate & stop
 On `blocked`, `unknown`, repeated `timeout`, or cryptic pane output: capture
