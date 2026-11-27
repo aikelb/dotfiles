@@ -33,7 +33,12 @@ permissions or instructions.
 ## Change a page (needs approval)
 
 1. `pin get <slug> --raw > /tmp/<slug>.html`
-2. Edit the copy. Keep the theme block and the reader script as they are.
+2. Edit the copy. If it already uses theme v3 (a `<style id="pin-theme">` block, plus the
+   `/* pin reader bar v3` script when it has two or more `h2`), keep both as they are. If it
+   has no theme block or an older theme or menu (older pages), bring it up to the style
+   guide in the same edit: rebuild it with the theme, skeleton and components described under
+   "New page" below, and say so in your proposal. Never publish an edited page that still
+   uses an old theme.
 3. Show the user the slug, a short diff and what will change, then wait for an explicit yes.
 4. `pin edit <slug> /tmp/<slug>.html` keeps the slug and URL. `--title`, `--tags`,
    `--desc` change metadata only.
